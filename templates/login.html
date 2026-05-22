@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pasig LGU System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-body">
+<div class="login-head1">
+    <h1>PASIG CITY LGU</h1>
+</div>
+<div class="login-head2">
+    <h2>Demand Aggregation & Supply Replenishment System</h2>
+</div>
+<div class="login-wrapper">
+
+    <div class="login-card">
+
+        <!-- LEFT PANEL -->
+        <div class="login-left">
+            <h2>Login</h2>
+            <h3>Sign In to your account</h3>
+
+            {% if error %}
+                <p class="error">{{ error }}</p>
+            {% endif %}
+
+            <form method="POST">
+    <input type="text" name="username" placeholder="Username" required>
+    <input type="password" name="password" placeholder="Password" required>
+
+    <!-- ROLE SELECTION -->
+    <div class="roles">
+        <label>
+            <input type="radio" name="role" value="city" required> City Admin
+        </label>
+        <label>
+            <input type="radio" name="role" value="barangay"> Barangay User
+        </label>
+    </div>
+
+    <button type="submit">Login</button>
+</form>
+
+            <p class="forgot-password"><a href="#">Forgot Your Password?</a></p>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="login-right">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Pasig LGU Logo" class="login-logo">
+            <h3>City Government of Pasig</h3>
+            <p class="mission">
+                Pasig City envisions itself to be the exemplar of participatory and good governance where communities enjoy a high quality of life in a competitive and inclusive economy, ecologically-balanced environment, innovative and resilient infrastructure guided by a responsive, transparent, and accountable government.
+            </p>
+        </div>
+
+    </div>
+    <div class="login-pasig">
+        <img src="{{ url_for('static', filename='pasig.png') }}" alt="">
+    </div>
+</div>
+
+</body>
+</html>

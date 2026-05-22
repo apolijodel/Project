@@ -1,0 +1,110 @@
+{% extends "barangay/base_barangay.html" %}
+
+{% block title %}Inventory{% endblock %}
+
+{% block content %}
+
+<div class="inventory-container">
+
+    <h2>My Inventory</h2>
+
+    <!-- SEARCH BAR -->
+    <div class="inventory-search">
+        <input
+            type="text"
+            id="searchInput"
+            class="search-input"
+            placeholder="Search medicine..."
+        >
+    </div>
+
+    <!-- DEDUCT FORM -->
+    <div class="inventory-card">
+
+        <h3>Deduct Medicine</h3>
+
+        <form method="POST" class="deduct-form">
+
+            <select name="medicine_id" class="medicine-select" required>
+                {% for i in inventory %}
+                <option value="{{ i.id }}">
+                    {{ i.name }} (Stock: {{ i.stock }})
+                </option>
+                {% endfor %}
+            </select>
+
+            <input
+                type="number"
+                name="quantity"
+                class="quantity-input"
+                min="1"
+                placeholder="Quantity"
+                required
+            >
+
+            <button type="submit" class="deduct-btn">
+                Deduct
+            </button>
+
+        </form>
+
+    </div>
+
+    <!-- INVENTORY TABLE -->
+    <div class="inventory-card">
+
+        <h3>Available Medicines</h3>
+
+        <table class="inventory-table">
+            <thead>
+                <tr>
+                    <th>Medicine</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for i in inventory %}
+                <tr>
+                    <td>{{ i.name }}</td>
+                    <td>{{ i.stock }}</td>
+
+                    <td>
+                        {% if i.stock == 0 %}
+                            <span class="out-stock">Out of Stock</span>
+                        {% elif i.stock <= 20 %}
+                            <span class="low-stock">Low Stock</span>
+                        {% else %}
+                            <span class="normal-stock">Normal Stock</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+<!-- LIVE SEARCH SCRIPT -->
+<script>
+document.getElementById("searchInput").addEventListener("keyup", function () {
+    let filter = this.value.toLowerCase();
+    let rows = document.querySelectorAll(".inventory-table tbody tr");
+
+    rows.forEach(row => {
+        let medicine = row.cells[0].textContent.toLowerCase();
+
+        if (medicine.includes(filter)) {
+            row.style.display = "";
+        } else {
+            row.style.display = "none";
+        }
+    });
+});
+</script>
+
+{% endblock %}

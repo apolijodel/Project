@@ -1,0 +1,95 @@
+{% extends "city/base_dashboard.html" %}
+{% block content %}
+
+<h2>Supply Distribution (Decision Support System)</h2>
+
+<!-- ================= DISTRIBUTION FORM ================= -->
+<form method="POST" class="supply-form">
+
+<label>Barangay:</label>
+<select name="barangay">
+{% for b in barangays %}
+<option value="{{ b.id }}">{{ b.name }}</option>
+{% endfor %}
+</select>
+
+<label>Medicine:</label>
+<select name="medicine">
+{% for m in medicines %}
+<option value="{{ m.id }}">
+    {{ m.name }} (Stock: {{ m.stock }})
+</option>
+{% endfor %}
+</select>
+
+<label>Quantity:</label>
+<input type="number" name="quantity" required>
+
+<button type="submit">Distribute</button>
+</form>
+
+<hr>
+<!-- ================= AI RECOMMENDATION PANEL ================= -->
+<h3> Medicine Forecast & Recommendations</h3>
+
+<table>
+<thead>
+<tr>
+<th>Medicine</th>
+<th>Stock</th>
+<th>Forecast Demand</th>
+<th>Recommended Supply</th>
+<th>Status</th>
+</tr>
+</thead>
+
+<tbody>
+{% for id, r in recommendations.items() %}
+<tr>
+<td>{{ r.name }}</td>
+<td>{{ r.stock }}</td>
+<td>{{ r.forecast }}</td>
+<td>{{ r.suggested }}</td>
+
+<td>
+{% if r.stock < r.forecast %}
+<span style="color:red;">CRITICAL</span>
+{% else %}
+<span style="color:green;">NORMAL</span>
+{% endif %}
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<hr>
+
+
+
+<!-- ================= HISTORY ================= -->
+<h3>Distribution History</h3>
+
+<table>
+<thead>
+<tr>
+<th>Barangay</th>
+<th>Medicine</th>
+<th>Quantity</th>
+<th>Date</th>
+</tr>
+</thead>
+
+<tbody>
+{% for h in history %}
+<tr>
+<td>{{ h.barangay }}</td>
+<td>{{ h.medicine }}</td>
+<td>{{ h.quantity }}</td>
+<td>{{ h.date }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+{% endblock %}

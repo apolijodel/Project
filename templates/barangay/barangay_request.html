@@ -1,0 +1,48 @@
+{% extends "barangay/base_barangay.html" %}
+
+{% block title %}Request Supplies{% endblock %}
+
+{% block content %}
+
+<h2>Request Supplies</h2>
+
+<form method="POST" action="{{ url_for('barangay.request_supplies') }}">
+
+    <label>Medicine:</label>
+    <select name="medicine_id" required>
+        {% for m in medicines %}
+        <option value="{{ m.id }}">{{ m.name }}</option>
+        {% endfor %}
+    </select>
+
+    <label>Quantity Requested:</label>
+    <input type="number" name="quantity" min="1" required>
+
+    <button type="submit">Submit Request</button>
+</form>
+
+<hr>
+
+<h3>My Recent Requests</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Medicine</th>
+            <th>Quantity</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for r in history %}
+        <tr>
+            <td>{{ r.medicine }}</td>
+            <td>{{ r.quantity }}</td>
+            <td>{{ r.date }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

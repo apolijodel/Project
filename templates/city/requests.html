@@ -1,0 +1,43 @@
+{% extends "city/base_dashboard.html" %}
+
+{% block title %}Requests{% endblock %}
+
+{% block content %}
+
+<h2>Barangay Requests</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Barangay</th>
+            <th>Medicine</th>
+            <th>Quantity</th>
+            <th>Status</th>
+            <th>Date</th>
+            <th>Action</th>
+            <th>Processed By</th>
+            <th>Action Date</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for r in requests %}
+        <tr>
+            <td>{{ r.barangay }}</td>
+            <td>{{ r.medicine }}</td>
+            <td>{{ r.quantity }}</td>
+            <td>{{ r.status }}</td>
+            <td>{{ r.date }}</td>
+            <td>
+                <a href="{{ url_for('city.request_details', id=r.id) }}">
+                    View Details
+                </a>
+            </td>
+            <td>{{ r.action_by or '-' }}</td>
+            <td>{{ r.action_date or '-' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

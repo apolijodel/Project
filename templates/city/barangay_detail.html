@@ -1,0 +1,100 @@
+{% extends "city/base_dashboard.html" %}
+
+{% block title %}Barangay Details{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<h2>{{ barangay.name }} - Medicine Details</h2>
+
+<!-- ================= SUMMARY ================= -->
+<div class="stats-cards">
+
+    <div class="card">
+        <h3>Total Medicines</h3>
+        <p>{{ medicines|length }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Total Usage</h3>
+        <p>{{ medicines | sum(attribute='total') }}</p>
+    </div>
+
+</div>
+
+<!-- ================= CHART ================= -->
+<div class="chart-wrapper">
+    <div class="chart-box">
+        <canvas id="barangayChart"></canvas>
+    </div>
+</div>
+
+<!-- ================= TABLE ================= -->
+<h3>Medicine Usage</h3>
+
+<table>
+<thead>
+<tr>
+<th>Medicine</th>
+<th>Total Used</th>
+</tr>
+</thead>
+
+<tbody>
+{% for m in medicines %}
+<tr>
+<td>{{ m.name }}</td>
+<td>{{ m.total }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<!-- ================= HISTORY ================= -->
+<h3>Transaction History</h3>
+
+<table>
+<thead>
+<tr>
+<th>Medicine</th>
+<th>Quantity</th>
+<th>Date</th>
+</tr>
+</thead>
+
+<tbody>
+{% for h in history %}
+<tr>
+<td>{{ h.medicine }}</td>
+<td>{{ h.quantity }}</td>
+<td>{{ h.date }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<!-- ================= CHART SCRIPT ================= -->
+<script>
+const labels = JSON.parse('{{ chart_labels | tojson | safe }}');
+const values = JSON.parse('{{ chart_values | tojson | safe }}');
+
+new Chart(document.getElementById('barangayChart'), {
+    type: 'bar',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Usage',
+            data: values,
+            backgroundColor: 'rgba(54,162,235,0.6)'
+        }]
+    },
+    options: {
+        responsive: true
+    }
+});
+</script>
+
+{% endblock %}

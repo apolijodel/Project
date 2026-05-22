@@ -1,0 +1,135 @@
+{% extends "city/base_dashboard.html" %}
+
+{% block title %}All Barangays{% endblock %}
+
+{% block content %}
+
+<!-- ================= FILTERS ================= -->
+<div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+
+    <input 
+        type="text" 
+        id="searchInput" 
+        placeholder="Search barangay..."
+        style="padding:10px; width:250px; border:1px solid #ccc; border-radius:5px;"
+    >
+
+    <select id="statusFilter" style="padding:10px; border-radius:5px;">
+        <option value="all">All Status</option>
+        <option value="normal">Normal</option>
+        <option value="low">Low</option>
+        <option value="critical">Critical</option>
+    </select>
+
+</div>
+
+<!-- ================= SUMMARY ================= -->
+<div class="stats-cards">
+
+    <div class="stats-card">
+        <h3>Visible Barangays</h3>
+        <p id="visibleCount">{{ barangays|length }}</p>
+    </div>
+
+    <div class="stats-card">
+        <h3>Total Transactions</h3>
+        <p>{{ barangays | sum(attribute='total_requests') }}</p>
+    </div>
+
+    <div class="stats-card">
+        <h3>Total Used</h3>
+        <p>{{ barangays | sum(attribute='total_used') }}</p>
+    </div>
+
+</div>
+
+<!-- ================= TABLE ================= -->
+<div class="table-section">
+    <h2>Barangay Medicine Overview</h2>
+
+    <table id="barangayTable">
+        <thead>
+            <tr>
+                <th>Barangay</th>
+                <th>Total Transactions</th>
+                <th>Total Used</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody>
+        {% for b in barangays %}
+
+            {% set status = "normal" %}
+            {% if b.total_used and b.total_used > 500 %}
+                {% set status = "critical" %}
+            {% elif b.total_used and b.total_used > 200 %}
+                {% set status = "low" %}
+            {% endif %}
+
+            <tr data-status="{{ status }}">
+                <td class="barangay-name">{{ b.name }}</td>
+                <td>{{ b.total_requests or 0 }}</td>
+                <td>{{ b.total_used or 0 }}</td>
+
+                <td>
+                    <span class="status {{ status }}">
+                        {{ status.capitalize() }}
+                    </span>
+                </td>
+
+                <td>
+                    <a href="{{ url_for('city.barangay_detail', id=b.id) }}">
+                        <button>View</button>
+                    </a>
+                </td>
+
+            </tr>
+
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ================= SCRIPT ================= -->
+<script>
+const searchInput = document.getElementById("searchInput");
+const statusFilter = document.getElementById("statusFilter");
+const table = document.getElementById("barangayTable");
+const rows = table.getElementsByTagName("tr");
+const visibleCount = document.getElementById("visibleCount");
+
+function filterTable() {
+    const searchValue = searchInput.value.toLowerCase();
+    const statusValue = statusFilter.value;
+
+    let count = 0;
+
+    for (let i = 1; i < rows.length; i++) {
+        const nameCell = rows[i].getElementsByClassName("barangay-name")[0];
+        const rowStatus = rows[i].getAttribute("data-status");
+
+        if (!nameCell) continue;
+
+        const nameText = nameCell.textContent.toLowerCase();
+
+        const matchSearch = nameText.includes(searchValue);
+        const matchStatus = (statusValue === "all" || rowStatus === statusValue);
+
+        if (matchSearch && matchStatus) {
+            rows[i].style.display = "";
+            count++;
+        } else {
+            rows[i].style.display = "none";
+        }
+    }
+
+    visibleCount.textContent = count;
+}
+
+searchInput.addEventListener("keyup", filterTable);
+statusFilter.addEventListener("change", filterTable);
+</script>
+
+{% endblock %}

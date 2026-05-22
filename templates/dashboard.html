@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pasig LGU System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="dashboard-body">
+
+  <!-- HEADER -->
+  <header class="dashboard-header">
+    <div class="header-left">
+      <img src="{{ url_for('static', filename='logow.png') }}" alt="Pasig LGU Logo" class="dashboard-logo">
+      <h1>Demand Aggregation & Supply Replenishment System</h1>
+    </div>
+    <div class="header-right">
+      <span>Welcome, {{ username }}</span>
+      <a href="{{ url_for('auth.logout') }}" class="logout-btn">Logout</a>
+    </div>
+  </header>
+
+  <!-- MAIN AREA -->
+  <div class="dashboard-main">
+
+<nav class="dashboard-sidebar">
+  <ul>
+    <li>
+      <a href="#">
+        <span class="icon">🏠</span>
+        <span class="text">Dashboard</span>
+      </a>
+    </li>
+    <li>
+      <a href="#">
+        <span class="icon">📊</span>
+        <span class="text">Reports</span>
+      </a>
+    </li>
+    <li>
+      <a href="#">
+        <span class="icon">📦</span>
+        <span class="text">Inventory</span>
+      </a>
+    </li>
+    <li>
+      <a href="#">
+        <span class="icon">⚙️</span>
+        <span class="text">Settings</span>
+      </a>
+    </li>
+  </ul>
+</nav>
+
+    <!-- CONTENT AREA -->
+    <div class="dashboard-content">
+
+      <!-- STATISTIC CARDS -->
+      <div class="stats-cards">
+        <div class="card">
+          <h3>Total Users</h3>
+          <p>1,245</p>
+        </div>
+        <div class="card">
+          <h3>Total Requests</h3>
+          <p>3,876</p>
+        </div>
+        <div class="card">
+          <h3>Pending Orders</h3>
+          <p>128</p>
+        </div>
+        <div class="card">
+          <h3>Completed Orders</h3>
+          <p>3,748</p>
+        </div>
+      </div>
+
+      <!-- TABLE EXAMPLE -->
+      <div class="table-section">
+        <h2>Recent Requests</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User</th>
+              <th>Item</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>001</td>
+              <td>Juan Dela Cruz</td>
+              <td>Rice</td>
+              <td>Pending</td>
+              <td>2026-04-09</td>
+            </tr>
+            <tr>
+              <td>002</td>
+              <td>Maria Santos</td>
+              <td>Beans</td>
+              <td>Completed</td>
+              <td>2026-04-08</td>
+            </tr>
+            <!-- more rows -->
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </div>
+</body>

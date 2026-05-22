@@ -1,0 +1,132 @@
+{% extends "city/base_dashboard.html" %}
+
+{% block title %}Reports{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <h2>Medicine Usage Report</h2>
+</div>
+
+<!-- ================= FILTER ================= -->
+<div class="filter-bar">
+
+    <label>Search Medicine:</label>
+
+    <input 
+        type="text" 
+        id="searchInput"
+        placeholder="Search medicine..."
+    >
+
+</div>
+
+<!-- ================= CHART ================= -->
+<div class="chart-card">
+    <div class="chart-wrapper">
+        <canvas id="medicineChart"></canvas>
+    </div>
+</div>
+
+<!-- ================= DECISION TABLE ================= -->
+<div class="table-section">
+    <h3>Decision Support Table</h3>
+
+    <table id="reportTable">
+        <thead>
+            <tr>
+                <th>Medicine</th>
+                <th>Actual Usage</th>
+                <th>Forecast</th>
+                <th>Risk Level</th>
+                <th>Recommended Supply</th>
+            </tr>
+        </thead>
+
+        <tbody>
+        {% for i in range((chart_labels or [])|length) %}
+            <tr>
+
+                <td>{{ chart_labels[i] }}</td>
+                <td>{{ chart_actual[i] }}</td>
+                <td>{{ chart_forecast[i] }}</td>
+
+                <td>
+                    <span class="risk-status {{ risk_levels[i]|lower }}">
+                        {{ risk_levels[i] if risk_levels|length > i else "No Data" }}
+                    </span>
+                </td>
+
+                <td>{{ recommendations[i] }}</td>
+
+            </tr>
+        {% endfor %}
+        </tbody>
+    <table id="reportTable">
+</div>
+
+<!-- ================= SCRIPT ================= -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    // ================= CHART =================
+    const labels = {{ chart_labels | default([]) | tojson }};
+    const actual = {{ chart_actual | default([]) | tojson }};
+    const forecast = {{ chart_forecast | default([]) | tojson }};
+
+    const ctx = document.getElementById('medicineChart');
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Actual Usage',
+                    data: actual,
+                    backgroundColor: 'rgba(54,162,235,0.6)'
+                },
+                {
+                    label: 'Forecast (ARIMA)',
+                    data: forecast,
+                    backgroundColor: 'rgba(255,99,132,0.6)'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+    // ================= TABLE SEARCH FILTER =================
+    const searchInput = document.getElementById("searchInput");
+    const table = document.getElementById("reportTable");
+    const rows = table.getElementsByTagName("tr");
+
+    if (searchInput && table) {
+        searchInput.addEventListener("keyup", function () {
+
+            const value = this.value.toLowerCase();
+
+            for (let i = 1; i < rows.length; i++) {
+
+                const firstCell = rows[i].getElementsByTagName("td")[0];
+
+                if (!firstCell) continue;
+
+                const text = firstCell.textContent.toLowerCase();
+
+                rows[i].style.display = text.includes(value) ? "" : "none";
+            }
+        });
+    }
+
+});
+</script>
+
+{% endblock %}

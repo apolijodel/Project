@@ -1,0 +1,128 @@
+{% extends "city/base_dashboard.html" %}
+
+{% block title %}Add Stock{% endblock %}
+
+{% block content %}
+
+<div class="inventory-container">
+
+    <h2>City Medicine Stock Management</h2>
+
+    <!-- ================= ADD NEW MEDICINE ================= -->
+    <div class="inventory-card">
+
+        <h3>Add New Medicine</h3>
+
+        <form method="POST" class="deduct-form">
+
+            <input type="hidden" name="action" value="add_medicine">
+
+            <input
+                type="text"
+                name="medicine_name"
+                class="medicine-select"
+                placeholder="Enter medicine name"
+                required
+            >
+
+            <button type="submit" class="deduct-btn">
+                Add Medicine
+            </button>
+
+        </form>
+
+    </div>
+
+    <!-- ================= RESTOCK MEDICINE ================= -->
+    <div class="inventory-card">
+
+    <h3>Restock Medicine</h3>
+
+    <form method="POST" class="deduct-form">
+
+        <input type="hidden" name="action" value="add_stock">
+
+        <!-- MEDICINE DROPDOWN -->
+        <select name="medicine_id" class="medicine-select" required>
+            {% for m in medicines %}
+            <option value="{{ m.id }}">
+                {{ m.name }} (Current: {{ m.stock }})
+            </option>
+            {% endfor %}
+        </select>
+
+        <!-- QUANTITY -->
+        <input
+            type="number"
+            name="quantity"
+            class="quantity-input"
+            min="1"
+            placeholder="Quantity"
+            required
+        >
+
+        <!-- ADD STOCK BUTTON -->
+        <button type="submit" class="deduct-btn">
+            Add Stock
+        </button>
+
+        <!-- DELETE BUTTON (same row) -->
+        <a
+            href="#"
+            class="delete-btn"
+            onclick="
+                if(confirm('Delete selected medicine?')) {
+                    const select = this.parentElement.querySelector('select');
+                    window.location.href = '/city/delete-medicine/' + select.value;
+                }
+                return false;
+            "
+        >
+            Delete
+        </a>
+
+    </form>
+
+</div>
+
+    <!-- ================= INVENTORY TABLE ================= -->
+    <div class="inventory-card">
+
+        <h3>Current City Inventory</h3>
+
+        <table class="inventory-table">
+            <thead>
+                <tr>
+                    <th>Medicine</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for m in medicines %}
+                <tr>
+                    <td>{{ m.name }}</td>
+                    <td>{{ m.stock }}</td>
+
+                    <td>
+                        {% if m.stock == 0 %}
+                            <span class="out-stock">Out of Stock</span>
+                        {% elif m.stock <= 20 %}
+                            <span class="low-stock">Low Stock</span>
+                        {% else %}
+                            <span class="normal-stock">Normal Stock</span>
+                        {% endif %}
+                    </td>
+
+                </tr>
+                {% endfor %}
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+{% endblock %}

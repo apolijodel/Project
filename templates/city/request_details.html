@@ -1,0 +1,144 @@
+{% extends "city/base_dashboard.html" %}
+
+{% block title %}Request Details{% endblock %}
+
+{% block content %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="request-container">
+
+    <h2>Request Details</h2>
+
+    <!-- WRAPPER ROW -->
+    <div class="request-row">
+
+        <!-- LEFT: REQUEST INFO -->
+        <div class="request-card">
+
+            <h3>Request Information</h3>
+
+            <div class="info-row">
+                <span>Barangay</span>
+                <strong>{{ req.barangay }}</strong>
+            </div>
+
+            <div class="info-row">
+                <span>Medicine</span>
+                <strong>{{ req.medicine }}</strong>
+            </div>
+
+            <div class="info-row">
+                <span>Quantity</span>
+                <strong>{{ req.quantity }}</strong>
+            </div>
+
+            <div class="info-row">
+                <span>Status</span>
+                <strong>{{ req.status }}</strong>
+            </div>
+
+            <div class="info-row">
+                <span>Date</span>
+                <strong>{{ req.date }}</strong>
+            </div>
+
+        </div>
+
+        <!-- RIGHT: ARIMA -->
+        <div class="request-card">
+
+            <h3>ARIMA Forecast Analysis</h3>
+
+            <div class="grid">
+
+                <div>
+                    <p><strong>Predicted Demand:</strong></p>
+                    <h2>{{ prediction }}</h2>
+                </div>
+
+                <div>
+                    <p><strong>Available Stock:</strong></p>
+                    <h2>{{ stock }}</h2>
+                </div>
+
+            </div>
+
+            {% if req.quantity <= stock %}
+                <p class="safe">Recommendation: Safe to approve</p>
+            {% else %}
+                <p class="danger">Warning: Stock may be insufficient</p>
+            {% endif %}
+
+        </div>
+
+    </div>
+
+</div>
+
+    <!-- ================= CHART ================= -->
+    <div class="chart-card">
+
+        <h3>Demand Forecast Graph</h3>
+
+        <div class="chart-wrapper">
+            <canvas id="forecastChart"></canvas>
+        </div>
+
+    </div>
+
+    <!-- ================= ACTIONS ================= -->
+    <div class="request-card actions">
+
+        {% if req.status == 'pending' %}
+            <a href="{{ url_for('city.approve_request', id=req.id) }}">Approve</a>
+            <a href="{{ url_for('city.reject_request', id=req.id) }}">Reject</a>
+        {% endif %}
+
+        {% if req.status == 'approved' %}
+            <a href="{{ url_for('city.release_request', id=req.id) }}">Release</a>
+        {% endif %}
+
+    </div>
+
+</div>
+
+<!-- ================= CHART SCRIPT ================= -->
+<script>
+const ctx = document.getElementById('forecastChart');
+
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: {{ history_dates | tojson }},
+        datasets: [
+            {
+                label: 'Historical Demand',
+                data: {{ history_values | tojson }},
+                borderColor: 'blue',
+                fill: false
+            },
+            {
+                label: 'Forecast',
+                data: [...{{ history_values | tojson }}, {{ prediction }}],
+                borderColor: 'red',
+                borderDash: [5,5],
+                fill: false
+            },
+            {
+                label: 'Stock Level',
+                data: Array({{ history_values|length }} + 1).fill({{ stock }}),
+                borderColor: 'green',
+                borderDash: [3,3],
+                fill: false
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false
+    }
+});
+</script>
+
+{% endblock %}

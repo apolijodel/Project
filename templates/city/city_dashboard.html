@@ -1,0 +1,101 @@
+{% extends "city/base_dashboard.html" %}
+
+{% block title %}City Dashboard{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<!-- ================= STATS CARDS ================= -->
+<div class="stats-cards">
+
+    <div class="stats-card">
+        <h3>Total Barangays</h3>
+        <p>{{ total_barangays }}</p>
+    </div>
+
+    <div class="stats-card">
+        <h3>Total Requests</h3>
+        <p>{{ total_requests }}</p>
+    </div>
+
+    <div class="stats-card">
+        <h3>Pending Approvals</h3>
+        <p>{{ pending_approvals }}</p>
+    </div>
+
+    <div class="stats-card">
+        <h3>Supplies Distributed</h3>
+        <p>{{ total_supplies }}</p>
+    </div>
+
+</div>
+
+<!-- ================= CHART ================= -->
+<div class="usage-report">
+    <h2>Top Medicine Usage</h2>
+</div>
+
+<div class="chart-card">
+    <div class="chart-wrapper">
+        <canvas id="dashboardChart"></canvas>
+    </div>
+</div>
+
+<!-- ================= RECENT ACTIVITY ================= -->
+<div class="table-section">
+    <h2>Recent Supply Distribution</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Barangay</th>
+                <th>Medicine</th>
+                <th>Quantity</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for h in history %}
+            <tr>
+                <td>{{ h.barangay }}</td>
+                <td>{{ h.medicine }}</td>
+                <td>{{ h.quantity }}</td>
+                <td>{{ h.date }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ================= SCRIPT ================= -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const labels = {{ chart_labels | default([]) | tojson | safe }};
+    const values = {{ chart_values | default([]) | tojson | safe }};
+
+    const ctx = document.getElementById('dashboardChart');
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Stock',
+                data: values
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+});
+</script>
+
+{% endblock %}
