@@ -1,63 +1,119 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-    <title>Pasig LGU System</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Pasig DASRS</title>
+  <link rel="icon" type="image/png" href="{{ asset('logo.png') }}">
+  <link rel="preload" href="{{ url_for('static', filename='vendor/fonts/plus-jakarta-sans-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ asset('vendor/fontawesome/css/fontawesome.min.css') }}">
+  <link rel="stylesheet" href="{{ asset('vendor/fontawesome/css/solid.min.css') }}">
+  <link rel="stylesheet" href="{{ asset('style.css') }}">
+  <script defer src="{{ asset('app.js') }}"></script>
 </head>
-<body class="login-body">
-<div class="login-head1">
-    <h1>PASIG CITY LGU</h1>
-</div>
-<div class="login-head2">
-    <h2>Demand Aggregation & Supply Replenishment System</h2>
-</div>
-<div class="login-wrapper">
+<body class="auth" style="--hero: url('{{ asset('chgrey.png') }}')">
 
-    <div class="login-card">
+<header class="auth-top">
+  <img class="auth-wordmark" src="{{ asset('logow.png') }}" alt="Lungsod ng Pasig" width="230" height="87">
+  <span class="auth-tag"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Authorized personnel only</span>
+</header>
 
-        <!-- LEFT PANEL -->
-        <div class="login-left">
-            <h2>Login</h2>
-            <h3>Sign In to your account</h3>
+<main class="auth-main">
+  <section class="auth-intro" aria-label="About the system">
+    <p class="eyebrow">City Health Office · Pasig City LGU</p>
+    <h1>Demand Aggregation &amp; Supply Replenishment System</h1>
+    <p class="lead">Forecast-driven medicine distribution for every barangay in Pasig, from request to release.</p>
+    <ul class="auth-features">
+      <li>
+        <span class="feature-icon"><i class="fa-solid fa-clipboard-check" aria-hidden="true"></i></span>
+        <span><strong>One request queue</strong>Barangays request supplies; the city approves and releases them.</span>
+      </li>
+      <li>
+        <span class="feature-icon"><i class="fa-solid fa-chart-line" aria-hidden="true"></i></span>
+        <span><strong>ARIMA demand forecasts</strong>Weekly forecasts flag shortages before they happen.</span>
+      </li>
+      <li>
+        <span class="feature-icon"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i></span>
+        <span><strong>Live stock tracking</strong>Every restock, release and dispense is recorded.</span>
+      </li>
+    </ul>
+  </section>
 
-            {% if error %}
-                <p class="error">{{ error }}</p>
-            {% endif %}
+  <section class="auth-card" aria-labelledby="signin-title">
+    <h2 id="signin-title">Sign in</h2>
+    <p class="muted">Use the account issued by the City Health Office.</p>
 
-            <form method="POST">
-    <input type="text" name="username" placeholder="Username" required>
-    <input type="password" name="password" placeholder="Password" required>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+      <div class="alert alert-{{ 'bad' if category == 'error' else 'good' }}" role="alert">
+        <i class="fa-solid fa-{{ 'circle-exclamation' if category == 'error' else 'circle-check' }}" aria-hidden="true"></i>
+        <span>{{ message }}</span>
+      </div>
+      {% endfor %}
+    {% endwith %}
 
-    <!-- ROLE SELECTION -->
-    <div class="roles">
-        <label>
-            <input type="radio" name="role" value="city" required> City Admin
-        </label>
-        <label>
-            <input type="radio" name="role" value="barangay"> Barangay User
-        </label>
+    <form method="post" class="auth-form" id="loginForm" novalidate data-validate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label class="field-label" for="username">Username</label>
+        <span class="input-icon">
+          <i class="fa-solid fa-user" aria-hidden="true"></i>
+          <input id="username" type="text" name="username" value="{{ username }}" autocomplete="username"
+                 required {{ 'autofocus' if not username }} placeholder="Enter your username"
+                 data-error="Enter your username." aria-describedby="username-error">
+        </span>
+        <span class="field-error" id="username-error" role="alert"></span>
+      </div>
+      <div class="field">
+        <label class="field-label" for="password">Password</label>
+        <span class="input-icon">
+          <i class="fa-solid fa-lock" aria-hidden="true"></i>
+          <input id="password" type="password" name="password" autocomplete="current-password" required
+                 {{ 'autofocus' if username }} placeholder="Enter your password"
+                 data-error="Enter your password." aria-describedby="password-error caps-hint">
+          <button type="button" class="reveal-btn" data-action="toggle-password" aria-label="Show password">
+            <i class="fa-solid fa-eye" aria-hidden="true"></i>
+          </button>
+        </span>
+        <span class="field-error" id="password-error" role="alert"></span>
+        <span class="caps-hint" id="caps-hint" hidden><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Caps Lock is on</span>
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg btn-block">
+        <span>Sign in</span><i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+      </button>
+    </form>
+    <p class="auth-help">Forgot your password? Ask a city administrator to reset it.</p>
+
+    {% if demo_accounts %}
+    <div class="demo" aria-labelledby="demo-title">
+      <div class="demo-head">
+        <p id="demo-title">Demo accounts</p>
+        <small>Click one to sign in</small>
+      </div>
+      <div class="demo-list">
+        {% for a in demo_accounts %}
+        <button type="button" class="demo-item" data-demo-username="{{ a.username }}" data-demo-password="{{ a.password }}">
+          <span class="demo-icon {{ 'tone-info' if a.role == 'city' else 'tone-good' }}">
+            <i class="fa-solid fa-{{ 'building-columns' if a.role == 'city' else 'house-medical' }}" aria-hidden="true"></i>
+          </span>
+          <span class="demo-text">
+            <strong>{{ a.label }}</strong>
+            <small><code>{{ a.username }}</code> · <code>{{ a.password }}</code></small>
+          </span>
+          <span class="demo-role">{{ 'Admin' if a.role == 'city' else 'Barangay' }}</span>
+        </button>
+        {% endfor %}
+      </div>
     </div>
+    {% endif %}
 
-    <button type="submit">Login</button>
-</form>
+  </section>
+</main>
 
-            <p class="forgot-password"><a href="#">Forgot Your Password?</a></p>
-        </div>
-
-        <!-- RIGHT PANEL -->
-        <div class="login-right">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="Pasig LGU Logo" class="login-logo">
-            <h3>City Government of Pasig</h3>
-            <p class="mission">
-                Pasig City envisions itself to be the exemplar of participatory and good governance where communities enjoy a high quality of life in a competitive and inclusive economy, ecologically-balanced environment, innovative and resilient infrastructure guided by a responsive, transparent, and accountable government.
-            </p>
-        </div>
-
-    </div>
-    <div class="login-pasig">
-        <img src="{{ url_for('static', filename='pasig.png') }}" alt="">
-    </div>
-</div>
+<footer class="auth-bottom">
+  <span>© {{ today.year }} City Government of Pasig</span>
+  <span>Umaagos ang Pag-asa</span>
+</footer>
 
 </body>
 </html>

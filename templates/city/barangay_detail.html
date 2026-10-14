@@ -1,100 +1,124 @@
-{% extends "city/base_dashboard.html" %}
+{% extends "base.html" %}
+{% block title %}{{ barangay.name }}{% endblock %}
+{% block heading %}{{ barangay.name }}{% endblock %}
+{% block crumbs %}<p class="crumbs"><a href="{{ url_for('city.all_barangays') }}">{{ ui.icon('arrow-left') }} Barangays</a></p>{% endblock %}
+{% block head %}<script defer src="{{ asset('vendor/chart.umd.min.js') }}"></script>{% endblock %}
 
-{% block title %}Barangay Details{% endblock %}
-
-{% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% block actions %}
+<a class="btn btn-primary hide-sm" href="{{ url_for('city.supply', barangay=barangay.id) }}">{{ ui.icon('truck-fast') }} Distribute</a>
 {% endblock %}
 
 {% block content %}
+<section class="stats">
+  {{ ui.stat('Total requests', stats.total, 'clipboard-list', 'brand', None, url_for('city.view_requests', status='all', barangay=barangay.id)) }}
+  {{ ui.stat('Pending', stats.pending, 'clock', 'warn', 'Awaiting approval', url_for('city.view_requests', status='pending', barangay=barangay.id)) }}
+  {{ ui.stat('Units received', stats.received, 'truck-fast', 'good', 'All-time') }}
+  {{ ui.stat('Low or out of stock', low_count, 'triangle-exclamation', 'bad' if low_count else 'brand', 'of ' ~ inventory|length ~ ' items held') }}
+</section>
 
-<h2>{{ barangay.name }} - Medicine Details</h2>
-
-<!-- ================= SUMMARY ================= -->
-<div class="stats-cards">
-
-    <div class="card">
-        <h3>Total Medicines</h3>
-        <p>{{ medicines|length }}</p>
+<section class="grid grid-1-1">
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Weekly demand</h2>
+        <p class="card-sub">Units requested · last 12 full weeks</p>
+      </div>
+    </header>
+    <div class="chart-box" style="--h: 240px">
+      <canvas id="trendChart" role="img" aria-label="Units requested per week by {{ barangay.name }}"></canvas>
     </div>
-
-    <div class="card">
-        <h3>Total Usage</h3>
-        <p>{{ medicines | sum(attribute='total') }}</p>
+  </article>
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Most requested</h2>
+        <p class="card-sub">Top medicines by units requested, all-time</p>
+      </div>
+    </header>
+    {% if demand %}
+    <div class="chart-box" style="--h: {{ [demand|length * 30 + 40, 200]|max }}px">
+      <canvas id="demandChart" role="img" aria-label="Bar chart of the most requested medicines"></canvas>
     </div>
+    {% else %}
+      {{ ui.empty('No requests yet', '', 'chart-bar') }}
+    {% endif %}
+  </article>
+</section>
 
-</div>
-
-<!-- ================= CHART ================= -->
-<div class="chart-wrapper">
-    <div class="chart-box">
-        <canvas id="barangayChart"></canvas>
+<section class="grid grid-1-1">
+  <article class="card card-flush">
+    <header class="card-head card-head-pad">
+      <div>
+        <h2>Current inventory</h2>
+        <p class="card-sub">Lowest stock first · low threshold {{ low_threshold }} units</p>
+      </div>
+    </header>
+    {% if inventory %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Medicine</th><th class="num">Stock</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for i in inventory %}
+          <tr>
+            <td><strong>{{ i.name }}</strong></td>
+            <td class="num">{{ i.stock|num }}</td>
+            <td>{{ ui.stock_pill(i.stock, low_threshold) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
     </div>
-</div>
+    {% else %}
+      {{ ui.empty('No inventory yet', 'Released medicines will be added to this barangay automatically.', 'box-open') }}
+    {% endif %}
+  </article>
 
-<!-- ================= TABLE ================= -->
-<h3>Medicine Usage</h3>
+  <article class="card card-flush">
+    <header class="card-head card-head-pad">
+      <div>
+        <h2>Recent requests</h2>
+        <p class="card-sub">Accounts: {% for a in accounts %}{{ a.username }}{{ ', ' if not loop.last }}{% else %}none{% endfor %}</p>
+      </div>
+      <a class="link" href="{{ url_for('city.view_requests', status='all', barangay=barangay.id) }}">All {{ ui.icon('arrow-right') }}</a>
+    </header>
+    {% if history %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Medicine</th><th class="num">Qty</th><th>Status</th><th>Requested</th></tr></thead>
+        <tbody>
+        {% for h in history %}
+          <tr class="is-clickable" data-href="{{ url_for('city.request_details', id=h.id) }}">
+            <td>{{ h.medicine }} {{ ui.source_tag(h.source) }}</td>
+            <td class="num">{{ h.quantity|num }}</td>
+            <td>{{ ui.status_pill(h.status) }}</td>
+            <td><span title="{{ h.requested_at|dt }}">{{ h.requested_at|ago }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      {{ ui.empty('No requests yet', '', 'clipboard-list') }}
+    {% endif %}
+  </article>
+</section>
+{% endblock %}
 
-<table>
-<thead>
-<tr>
-<th>Medicine</th>
-<th>Total Used</th>
-</tr>
-</thead>
-
-<tbody>
-{% for m in medicines %}
-<tr>
-<td>{{ m.name }}</td>
-<td>{{ m.total }}</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-
-<!-- ================= HISTORY ================= -->
-<h3>Transaction History</h3>
-
-<table>
-<thead>
-<tr>
-<th>Medicine</th>
-<th>Quantity</th>
-<th>Date</th>
-</tr>
-</thead>
-
-<tbody>
-{% for h in history %}
-<tr>
-<td>{{ h.medicine }}</td>
-<td>{{ h.quantity }}</td>
-<td>{{ h.date }}</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-
-<!-- ================= CHART SCRIPT ================= -->
+{% block scripts %}
 <script>
-const labels = JSON.parse('{{ chart_labels | tojson | safe }}');
-const values = JSON.parse('{{ chart_values | tojson | safe }}');
-
-new Chart(document.getElementById('barangayChart'), {
-    type: 'bar',
-    data: {
-        labels: labels,
-        datasets: [{
-            label: 'Usage',
-            data: values,
-            backgroundColor: 'rgba(54,162,235,0.6)'
-        }]
-    },
-    options: {
-        responsive: true
-    }
+document.addEventListener("DOMContentLoaded", function () {
+  DASRS.lineChart("trendChart", {
+    labels: {{ trend_labels|tojson }},
+    emptyText: "No requests in the last 12 weeks",
+    series: [{ label: "Units requested", data: {{ trend_values|tojson }}, area: true }]
+  });
+  {% if demand %}
+  DASRS.barChart("demandChart", {
+    labels: {{ demand|map(attribute='name')|list|tojson }},
+    horizontal: true,
+    series: [{ label: "Units requested", data: {{ demand|map(attribute='units')|list|tojson }} }]
+  });
+  {% endif %}
 });
 </script>
-
 {% endblock %}

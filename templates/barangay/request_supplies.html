@@ -1,60 +1,149 @@
-{% extends "barangay/base_barangay.html" %}
-
+{% extends "base.html" %}
 {% block title %}Request Supplies{% endblock %}
+{% block heading %}Request supplies{% endblock %}
+{% block crumbs %}<p class="crumbs">Requests go to the City Health Office for approval</p>{% endblock %}
 
 {% block content %}
+{% macro line(mid, qty) -%}
+<div class="req-line" data-line>
+  <select name="medicine_id" class="select" aria-label="Medicine">
+    <option value="">Choose a medicine</option>
+    {% for m in medicines %}
+    <option value="{{ m.id }}" data-stock="{{ m.stock }}"{% if m.id|string == mid %} selected{% endif %}{% if m.has_pending %} disabled{% endif %}>
+      {{ m.name }}{% if m.has_pending %} (request pending){% endif %}
+    </option>
+    {% endfor %}
+  </select>
+  <input type="number" name="quantity" class="input" min="1" step="1" inputmode="numeric" placeholder="Qty"
+         value="{{ qty }}" aria-label="Quantity">
+  <button type="button" class="icon-btn line-remove" data-action="remove-line" aria-label="Remove this medicine">{{ ui.icon('xmark') }}</button>
+  <small class="line-hint" data-line-hint></small>
+</div>
+{%- endmacro %}
 
-<h2>Request Medicine Supplies</h2>
+<section class="grid grid-2-1 grid-form">
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>New request</h2>
+        <p class="card-sub">Add every medicine you need, then submit them together</p>
+      </div>
+      <span class="list-icon tone-info">{{ ui.icon('paper-plane') }}</span>
+    </header>
+    {% if medicines %}
+    <form method="post" id="requisition" class="requisition" novalidate data-validate data-requisition>
+      {{ ui.csrf() }}
+      <div class="req-head" aria-hidden="true"><span>Medicine</span><span>Quantity</span><span></span></div>
+      <div class="req-lines" data-lines>
+        {% for mid, qty in lines %}{{ line(mid, qty) }}{% endfor %}
+      </div>
+      <template id="lineTemplate">{{ line('', '') }}</template>
+      <p class="field-error req-error" data-req-error role="alert"></p>
+      <div class="req-foot">
+        <button type="button" class="btn btn-ghost" data-action="add-line">{{ ui.icon('plus') }} Add another medicine</button>
+        <button type="submit" class="btn btn-primary btn-lg">
+          {{ ui.icon('paper-plane') }} <span data-submit-label>Submit request</span>
+        </button>
+      </div>
+    </form>
+    {% else %}
+      {{ ui.empty('No medicines available', 'The city has not listed any medicines yet.', 'pills') }}
+    {% endif %}
+  </article>
 
-<!-- ================= FORM ================= -->
-<form method="POST" action="{{ url_for('barangay.request_supplies') }}" class="supply-form">
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Suggested for you</h2>
+        <p class="card-sub">Covers {{ cover_weeks }} weeks of use plus safety stock</p>
+      </div>
+      {% if suggestions %}
+      <button type="button" class="btn btn-soft btn-sm" data-action="add-all-suggestions">{{ ui.icon('wand-magic-sparkles') }} Add all</button>
+      {% endif %}
+    </header>
+    {% if suggestions %}
+    <ul class="list">
+      {% for s in suggestions[:8] %}
+      <li class="list-item">
+        <span class="list-icon tone-{{ 'bad' if s.stock == 0 else 'warn' }}">{{ ui.icon('circle-xmark' if s.stock == 0 else 'arrow-trend-down') }}</span>
+        <span class="list-main">
+          <strong>{{ s.name }}</strong>
+          <small>
+            {{ 'Out of stock' if s.stock == 0 else 'You have ' ~ s.stock|num }}
+            {% if s.weekly %} · uses ~{{ s.weekly|num(1) }}/week{% endif %}
+          </small>
+        </span>
+        <button type="button" class="btn btn-ghost btn-sm" data-suggest data-medicine="{{ s.id }}" data-qty="{{ s.suggested }}"
+                title="Based on {{ s.basis }}">
+          + {{ s.suggested|num }}
+        </button>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      {{ ui.empty('Nothing to restock right now', 'Suggestions appear when your stock runs low compared with how fast you use it.', 'shield-heart') }}
+    {% endif %}
+  </article>
+</section>
 
-    <label>Medicine:</label>
-    <select name="medicine_id" required>
-        {% for m in medicines %}
-        <option value="{{ m.id }}">
-            {{ m.name }} (Stock: {{ m.stock }})
-        </option>
-        {% endfor %}
-    </select>
-
-    <label>Quantity:</label>
-    <input type="number" name="quantity" min="1" required>
-
-    <button type="submit">Submit Request</button>
-</form>
-
-<hr>
-
-<!-- ================= HISTORY ================= -->
-<h3>My Request History</h3>
-
-<table>
-    <thead>
-        <tr>
-            <th>Medicine</th>
-            <th>Quantity</th>
-            <th>Status</th>
-            <th>Date</th>
+<section class="card card-flush">
+  <header class="card-head card-head-pad">
+    <div>
+      <h2>My requests</h2>
+      <p class="card-sub">{{ counts.get('all', 0)|num }} total · select a row for details</p>
+    </div>
+  </header>
+  <div class="card-pad-x">
+  {{ ui.tabs([
+    ('all',       'All',       url_for('barangay.request_supplies', status='all'),       counts.get('all', 0)),
+    ('pending',   'Pending',   url_for('barangay.request_supplies', status='pending'),   counts.get('pending', 0)),
+    ('approved',  'Approved',  url_for('barangay.request_supplies', status='approved'),  counts.get('approved', 0)),
+    ('released',  'Received',  url_for('barangay.request_supplies', status='released'),  counts.get('released', 0)),
+    ('rejected',  'Rejected',  url_for('barangay.request_supplies', status='rejected'),  counts.get('rejected', 0)),
+  ], status) }}
+  </div>
+  {% if history %}
+  <div class="table-wrap">
+    <table class="table table-stack">
+      <thead><tr><th>#</th><th>Medicine</th><th class="num">Qty</th><th>Status</th><th>Requested</th><th class="actions-col"><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>
+      {% for r in history %}
+        <tr class="is-clickable" data-href="{{ url_for('barangay.request_detail', id=r.id) }}">
+          <td class="muted hide-sm">{{ r.id }}</td>
+          <td data-label="Medicine">
+            <div>
+              <strong>{{ r.medicine }}</strong> {{ ui.source_tag(r.source) }}
+              {% if r.remarks and r.status == 'rejected' %}<small class="text-bad d-block">{{ r.remarks }}</small>{% endif %}
+            </div>
+          </td>
+          <td class="num" data-label="Quantity">{{ r.quantity|num }}</td>
+          <td data-label="Status">
+            <div>
+              {{ ui.status_pill(r.status) }}
+              {% if r.action_at and r.status != 'pending' %}<small class="muted d-block">{{ r.action_at|ago }}</small>{% endif %}
+            </div>
+          </td>
+          <td data-label="Requested"><span title="{{ r.requested_at|dt }}">{{ r.requested_at|ago }}</span></td>
+          <td class="actions-col">
+            <div class="row-actions">
+              {% if r.status == 'pending' %}
+              <form method="post" action="{{ url_for('barangay.cancel', id=r.id) }}"
+                    data-confirm="Cancel your request for {{ r.quantity|num }} × {{ r.medicine }}?" data-confirm-label="Cancel request" data-confirm-tone="danger">
+                {{ ui.csrf() }}<input type="hidden" name="next" value="{{ request.full_path }}">
+                <button type="submit" class="btn btn-sm btn-ghost-bad">Cancel</button>
+              </form>
+              {% endif %}
+              <a class="btn btn-sm btn-ghost" href="{{ url_for('barangay.request_detail', id=r.id) }}" aria-label="View request {{ r.id }}">{{ ui.icon('chevron-right') }}</a>
+            </div>
+          </td>
         </tr>
-    </thead>
-
-    <tbody>
-        {% if history %}
-            {% for r in history %}
-            <tr>
-                <td>{{ r.medicine }}</td>
-                <td>{{ r.quantity }}</td>
-                <td>{{ r.status }}</td>
-                <td>{{ r.date }}</td>
-            </tr>
-            {% endfor %}
-        {% else %}
-        <tr>
-            <td colspan="4">No requests yet</td>
-        </tr>
-        {% endif %}
-    </tbody>
-</table>
-
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ ui.pager(page, pages, total, 'requests') }}
+  {% else %}
+    {{ ui.empty('No requests here', 'Requests you submit will show up in this list.', 'clipboard-list') }}
+  {% endif %}
+</section>
 {% endblock %}

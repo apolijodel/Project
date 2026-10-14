@@ -1,95 +1,147 @@
-{% extends "city/base_dashboard.html" %}
+{% extends "base.html" %}
+{% block title %}Distribution{% endblock %}
+{% block heading %}Supply distribution{% endblock %}
+{% block crumbs %}<p class="crumbs">Send medicines from city stock directly to a barangay</p>{% endblock %}
+
 {% block content %}
+<section class="grid grid-1-1">
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>New distribution</h2>
+        <p class="card-sub">Stock moves to the barangay inventory immediately</p>
+      </div>
+    </header>
+    {% if barangays and medicines %}
+    <form method="post" class="form" id="distributeForm"
+          data-confirm="Distribute these medicines now? City stock will be reduced." data-confirm-label="Distribute">
+      {{ ui.csrf() }}
+      {% set sel_b = (form.get('barangay') or preselect.get('barangay') or '')|string %}
+      {% set sel_m = (form.get('medicine') or preselect.get('medicine') or '')|string %}
+      <label class="field">
+        <span class="field-label">Barangay</span>
+        <select name="barangay" class="select" required>
+          <option value="" disabled{% if not sel_b %} selected{% endif %}>Choose a barangay</option>
+          {% for b in barangays %}<option value="{{ b.id }}"{% if b.id|string == sel_b %} selected{% endif %}>{{ b.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">Medicine</span>
+        <select name="medicine" class="select" required>
+          <option value="" disabled{% if not sel_m %} selected{% endif %}>Choose a medicine</option>
+          {% for m in medicines %}
+            <option value="{{ m.id }}" data-stock="{{ m.stock }}"{% if m.id|string == sel_m %} selected{% endif %}{% if m.stock == 0 %} disabled{% endif %}>
+              {{ m.name }} — {{ m.stock|num }} in stock
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">Quantity</span>
+        <input type="number" name="quantity" class="input" min="1" step="1" required inputmode="numeric"
+               value="{{ form.get('quantity', '') }}" placeholder="Units to send">
+        <span class="field-hint" id="qtyHint">Choose a barangay and medicine to see a suggested quantity.</span>
+      </label>
+      <button type="submit" class="btn btn-primary btn-lg">{{ ui.icon('truck-fast') }} Distribute</button>
+    </form>
+    {% else %}
+      {{ ui.empty('Nothing to distribute yet', 'Add barangays and medicines with stock first.', 'boxes-stacked') }}
+    {% endif %}
+  </article>
 
-<h2>Supply Distribution (Decision Support System)</h2>
+  <article class="card insight" id="insight" aria-live="polite">
+    <header class="card-head">
+      <div>
+        <h2>Suggested quantity</h2>
+        <p class="card-sub">Based on this barangay's last 8 weeks of requests</p>
+      </div>
+    </header>
+    <div class="insight-empty" data-insight-empty>
+      {{ ui.empty('Pick a barangay and medicine', 'You will see their current stock, average weekly demand and a suggested amount covering the next ' ~ horizon ~ ' weeks plus ' ~ (safety * 100)|int ~ '% safety stock.', 'wand-magic-sparkles') }}
+    </div>
+    <div class="insight-body" data-insight-body hidden>
+      <div class="metrics">
+        <div class="metric"><span>Brgy. stock</span><strong data-k="bstock">—</strong></div>
+        <div class="metric"><span>Avg / week</span><strong data-k="weekly">—</strong></div>
+        <div class="metric"><span>City stock</span><strong data-k="cstock">—</strong></div>
+        <div class="metric metric-accent"><span>Suggested</span><strong data-k="suggested">—</strong></div>
+      </div>
+      <p class="footnote" data-k="explain"></p>
+      <button type="button" class="btn btn-soft" data-action="use-suggested">{{ ui.icon('wand-magic-sparkles') }} Use suggested quantity</button>
+    </div>
+  </article>
+</section>
 
-<!-- ================= DISTRIBUTION FORM ================= -->
-<form method="POST" class="supply-form">
+<section class="card">
+  <header class="card-head">
+    <div>
+      <h2>Recent distributions</h2>
+      <p class="card-sub">Released requests and direct distributions</p>
+    </div>
+    <a class="link" href="{{ url_for('city.view_requests', status='released') }}">Full history {{ ui.icon('arrow-right') }}</a>
+  </header>
+  {% if recent %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Barangay</th><th>Medicine</th><th class="num">Quantity</th><th>Released by</th><th>When</th></tr></thead>
+      <tbody>
+      {% for r in recent %}
+        <tr>
+          <td><strong>{{ r.barangay }}</strong></td>
+          <td>{{ r.medicine }} {{ ui.source_tag(r.source) }}</td>
+          <td class="num">{{ r.quantity|num }}</td>
+          <td>{{ r.action_by or '—' }}</td>
+          <td><span title="{{ r.released_at|dt }}">{{ r.released_at|ago }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty('No distributions yet', '', 'truck-fast') }}
+  {% endif %}
+</section>
+{% endblock %}
 
-<label>Barangay:</label>
-<select name="barangay">
-{% for b in barangays %}
-<option value="{{ b.id }}">{{ b.name }}</option>
-{% endfor %}
-</select>
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var ctx = {{ context|tojson }}, horizon = {{ horizon }}, safety = {{ safety }};
+  var form = document.getElementById("distributeForm");
+  if (!form) return;
+  var b = form.elements.barangay, m = form.elements.medicine, q = form.elements.quantity;
+  var card = document.getElementById("insight"), suggested = 0, cityStock = 0;
+  var fmt = function (n) { return Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 }); };
+  var set = function (k, v) { card.querySelector('[data-k="' + k + '"]').textContent = v; };
 
-<label>Medicine:</label>
-<select name="medicine">
-{% for m in medicines %}
-<option value="{{ m.id }}">
-    {{ m.name }} (Stock: {{ m.stock }})
-</option>
-{% endfor %}
-</select>
-
-<label>Quantity:</label>
-<input type="number" name="quantity" required>
-
-<button type="submit">Distribute</button>
-</form>
-
-<hr>
-<!-- ================= AI RECOMMENDATION PANEL ================= -->
-<h3> Medicine Forecast & Recommendations</h3>
-
-<table>
-<thead>
-<tr>
-<th>Medicine</th>
-<th>Stock</th>
-<th>Forecast Demand</th>
-<th>Recommended Supply</th>
-<th>Status</th>
-</tr>
-</thead>
-
-<tbody>
-{% for id, r in recommendations.items() %}
-<tr>
-<td>{{ r.name }}</td>
-<td>{{ r.stock }}</td>
-<td>{{ r.forecast }}</td>
-<td>{{ r.suggested }}</td>
-
-<td>
-{% if r.stock < r.forecast %}
-<span style="color:red;">CRITICAL</span>
-{% else %}
-<span style="color:green;">NORMAL</span>
-{% endif %}
-</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-
-<hr>
-
-
-
-<!-- ================= HISTORY ================= -->
-<h3>Distribution History</h3>
-
-<table>
-<thead>
-<tr>
-<th>Barangay</th>
-<th>Medicine</th>
-<th>Quantity</th>
-<th>Date</th>
-</tr>
-</thead>
-
-<tbody>
-{% for h in history %}
-<tr>
-<td>{{ h.barangay }}</td>
-<td>{{ h.medicine }}</td>
-<td>{{ h.quantity }}</td>
-<td>{{ h.date }}</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-
+  function update() {
+    var hint = document.getElementById("qtyHint");
+    var opt = m.options[m.selectedIndex];
+    if (!b.value || !m.value) return;
+    cityStock = Number(opt.dataset.stock || 0);
+    var c = ctx[b.value + "-" + m.value] || { weekly: 0, stock: 0 };
+    var need = Math.ceil(c.weekly * horizon * (1 + safety));
+    suggested = Math.min(Math.max(need - (c.stock || 0), 0), cityStock);
+    set("bstock", fmt(c.stock || 0));
+    set("weekly", fmt(c.weekly));
+    set("cstock", fmt(cityStock));
+    set("suggested", fmt(suggested));
+    set("explain", c.weekly
+      ? fmt(c.weekly) + " units/week × " + horizon + " weeks + " + Math.round(safety * 100) + "% safety = " + fmt(need) + " needed, minus " + fmt(c.stock || 0) + " on hand."
+      : "No requests from this barangay for this medicine in the last 8 weeks.");
+    card.querySelector("[data-insight-empty]").hidden = true;
+    card.querySelector("[data-insight-body]").hidden = false;
+    card.classList.remove("pulse"); void card.offsetWidth; card.classList.add("pulse");
+    q.max = cityStock;
+    hint.textContent = "Up to " + fmt(cityStock) + " available in city stock.";
+  }
+  b.addEventListener("change", update);
+  m.addEventListener("change", update);
+  card.querySelector('[data-action="use-suggested"]').addEventListener("click", function () {
+    q.value = suggested || "";
+    q.focus();
+  });
+  update();
+});
+</script>
 {% endblock %}

@@ -1,112 +1,79 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<!--
+  Launcher page. Flask does not use this file.
+
+  The real pages in templates/ are Jinja templates and only render through Flask
+  (run.bat or ".venv\Scripts\python app.py", then http://127.0.0.1:5000).
+  Opening them with Live Server shows raw {{ ... }} code and no styling.
+  If you open this file with Live Server, it forwards you to the running system.
+-->
+<html lang="en">
 <head>
-    <title>Pasig LGU System</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Opening Pasig DASRS…</title>
+  <style>
+    :root { --navy: #0e2f66; --blue: #118df1; --text: #0f1b2d; --muted: #6b7789; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--text);
+      background: radial-gradient(70% 60% at 50% 0%, #e4f1fe, #f3f5f9);
+    }
+    .card {
+      width: 100%; max-width: 460px; padding: 36px 32px; text-align: center; background: #fff;
+      border: 1px solid #e4e8ef; border-radius: 20px; box-shadow: 0 12px 32px -12px rgba(15, 27, 45, .25);
+    }
+    img { width: 64px; height: 64px; }
+    h1 { margin: 16px 0 6px; font-size: 22px; letter-spacing: -.02em; }
+    p { margin: 0; color: var(--muted); line-height: 1.55; }
+    .status { display: inline-flex; align-items: center; gap: 10px; margin-top: 22px; font-weight: 600; color: var(--navy); }
+    .spinner {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid var(--blue); border-right-color: transparent; animation: spin .7s linear infinite;
+    }
+    ol { margin: 22px 0 0; padding: 16px 16px 16px 36px; text-align: left; background: #f8fafc; border-radius: 12px; color: var(--text); }
+    li + li { margin-top: 6px; }
+    code { padding: 1px 6px; border-radius: 6px; background: #e8ecf2; font-size: 13px; }
+    a.btn {
+      display: inline-block; margin-top: 22px; padding: 11px 20px; border-radius: 10px;
+      background: var(--blue); color: #fff; font-weight: 650; text-decoration: none;
+    }
+    [hidden] { display: none !important; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
-<body class="dashboard-body">
+<body>
+  <main class="card">
+    <img src="../static/logo.png" alt="Seal of Pasig City">
+    <h1>Pasig DASRS</h1>
+    <p>The system runs on Flask at <strong>127.0.0.1:5000</strong>. This page sends you there.</p>
 
-  <!-- HEADER -->
-  <header class="dashboard-header">
-    <div class="header-left">
-      <img src="{{ url_for('static', filename='logow.png') }}" alt="Pasig LGU Logo" class="dashboard-logo">
-      <h1>Demand Aggregation & Supply Replenishment System</h1>
+    <div class="status" id="checking"><span class="spinner"></span> Opening the system…</div>
+
+    <div id="offline" hidden>
+      <ol>
+        <li>Open the <strong>XAMPP Control Panel</strong> and start <strong>MySQL</strong>.</li>
+        <li>Double-click <code>run.bat</code> in the project folder<br>
+            (or run <code>.venv\Scripts\python app.py</code>).</li>
+        <li>Keep this tab open, it continues automatically.</li>
+      </ol>
+      <a class="btn" href="http://127.0.0.1:5000/">Open http://127.0.0.1:5000</a>
     </div>
-    <div class="header-right">
-      <span>Welcome, {{ username }}</span>
-      <a href="{{ url_for('auth.logout') }}" class="logout-btn">Logout</a>
-    </div>
-  </header>
+  </main>
 
-  <!-- MAIN AREA -->
-  <div class="dashboard-main">
-
-<nav class="dashboard-sidebar">
-  <ul>
-    <li>
-      <a href="#">
-        <span class="icon">🏠</span>
-        <span class="text">Dashboard</span>
-      </a>
-    </li>
-    <li>
-      <a href="#">
-        <span class="icon">📊</span>
-        <span class="text">Reports</span>
-      </a>
-    </li>
-    <li>
-      <a href="#">
-        <span class="icon">📦</span>
-        <span class="text">Inventory</span>
-      </a>
-    </li>
-    <li>
-      <a href="#">
-        <span class="icon">⚙️</span>
-        <span class="text">Settings</span>
-      </a>
-    </li>
-  </ul>
-</nav>
-
-    <!-- CONTENT AREA -->
-    <div class="dashboard-content">
-
-      <!-- STATISTIC CARDS -->
-      <div class="stats-cards">
-        <div class="card">
-          <h3>Total Users</h3>
-          <p>1,245</p>
-        </div>
-        <div class="card">
-          <h3>Total Requests</h3>
-          <p>3,876</p>
-        </div>
-        <div class="card">
-          <h3>Pending Orders</h3>
-          <p>128</p>
-        </div>
-        <div class="card">
-          <h3>Completed Orders</h3>
-          <p>3,748</p>
-        </div>
-      </div>
-
-      <!-- TABLE EXAMPLE -->
-      <div class="table-section">
-        <h2>Recent Requests</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>User</th>
-              <th>Item</th>
-              <th>Status</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>001</td>
-              <td>Juan Dela Cruz</td>
-              <td>Rice</td>
-              <td>Pending</td>
-              <td>2026-04-09</td>
-            </tr>
-            <tr>
-              <td>002</td>
-              <td>Maria Santos</td>
-              <td>Beans</td>
-              <td>Completed</td>
-              <td>2026-04-08</td>
-            </tr>
-            <!-- more rows -->
-          </tbody>
-        </table>
-      </div>
-
-    </div>
-
-  </div>
+  <script>
+    var APP = "http://127.0.0.1:5000/";
+    function check() {
+      fetch(APP + "login", { mode: "no-cors", cache: "no-store" })
+        .then(function () { window.location.replace(APP); })
+        .catch(function () {
+          document.getElementById("checking").hidden = true;
+          document.getElementById("offline").hidden = false;
+          setTimeout(check, 2000);
+        });
+    }
+    check();
+  </script>
 </body>
+</html>

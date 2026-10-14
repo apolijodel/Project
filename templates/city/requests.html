@@ -1,43 +1,134 @@
-{% extends "city/base_dashboard.html" %}
-
+{% extends "base.html" %}
 {% block title %}Requests{% endblock %}
+{% block heading %}Barangay requests{% endblock %}
+{% block crumbs %}<p class="crumbs">Approve, reject and release supply requests</p>{% endblock %}
 
 {% block content %}
+{% set qs = {'q': search or None, 'barangay': barangay_id} %}
+{% set selectable = status in ('pending', 'approved', 'released') %}
+{{ ui.tabs([
+  ('pending',   'Pending',   url_for('city.view_requests', status='pending', **qs),   counts.get('pending', 0)),
+  ('approved',  'To release', url_for('city.view_requests', status='approved', **qs), counts.get('approved', 0)),
+  ('released',  'Released',  url_for('city.view_requests', status='released', **qs),  counts.get('released', 0)),
+  ('rejected',  'Rejected',  url_for('city.view_requests', status='rejected', **qs),  counts.get('rejected', 0)),
+  ('cancelled', 'Cancelled', url_for('city.view_requests', status='cancelled', **qs), counts.get('cancelled', 0)),
+  ('all',       'All',       url_for('city.view_requests', status='all', **qs),       counts.get('all', 0)),
+], status) }}
 
-<h2>Barangay Requests</h2>
+<section class="card card-flush">
+  <form class="toolbar" method="get" action="{{ url_for('city.view_requests') }}">
+    <input type="hidden" name="status" value="{{ status }}">
+    <label class="search">
+      {{ ui.icon('magnifying-glass') }}
+      <input type="search" name="q" value="{{ search }}" placeholder="Search barangay or medicine" aria-label="Search">
+    </label>
+    <select name="barangay" class="select" aria-label="Filter by barangay" data-autosubmit>
+      <option value="">All barangays</option>
+      {% for b in barangays %}<option value="{{ b.id }}"{% if b.id == barangay_id %} selected{% endif %}>{{ b.name }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-ghost" type="submit">{{ ui.icon('filter') }} Apply</button>
+    {% if search or barangay_id %}
+      <a class="link" href="{{ url_for('city.view_requests', status=status) }}">Clear filters</a>
+    {% endif %}
+  </form>
 
-<table>
-    <thead>
+  {% if requests %}
+  <div class="table-wrap">
+    <table class="table table-stack">
+      <thead>
         <tr>
-            <th>Barangay</th>
-            <th>Medicine</th>
-            <th>Quantity</th>
-            <th>Status</th>
-            <th>Date</th>
-            <th>Action</th>
-            <th>Processed By</th>
-            <th>Action Date</th>
+          {% if selectable %}<th class="check-col hide-sm"><input type="checkbox" class="check" data-select-all aria-label="Select all on this page"></th>{% endif %}
+          <th>#</th><th>Barangay</th><th>Medicine</th><th class="num">Qty</th>
+          <th>Status</th><th>Requested</th><th>Processed</th><th class="actions-col"><span class="sr-only">Actions</span></th>
         </tr>
-    </thead>
-
-    <tbody>
-        {% for r in requests %}
+      </thead>
+      <tbody>
+      {% for r in requests %}
         <tr>
-            <td>{{ r.barangay }}</td>
-            <td>{{ r.medicine }}</td>
-            <td>{{ r.quantity }}</td>
-            <td>{{ r.status }}</td>
-            <td>{{ r.date }}</td>
-            <td>
-                <a href="{{ url_for('city.request_details', id=r.id) }}">
-                    View Details
-                </a>
-            </td>
-            <td>{{ r.action_by or '-' }}</td>
-            <td>{{ r.action_date or '-' }}</td>
+          {% if selectable %}<td class="check-col hide-sm"><input type="checkbox" class="check" name="ids" value="{{ r.id }}" form="bulkForm" aria-label="Select request {{ r.id }}"></td>{% endif %}
+          <td class="muted hide-sm">{{ r.id }}</td>
+          <td data-label="Barangay"><a class="row-link" href="{{ url_for('city.barangay_detail', id=r.barangay_id) }}">{{ r.barangay }}</a></td>
+          <td data-label="Medicine">
+            <div>
+              {{ r.medicine }} {{ ui.source_tag(r.source) }}
+              {% if r.status in ('pending', 'approved') and r.quantity > r.stock %}
+                <small class="text-bad d-block">{{ ui.icon('triangle-exclamation') }} Only {{ r.stock|num }} in city stock</small>
+              {% endif %}
+            </div>
+          </td>
+          <td class="num" data-label="Quantity"><strong>{{ r.quantity|num }}</strong></td>
+          <td data-label="Status">
+            <div>
+              {{ ui.status_pill(r.status) }}
+              {% if r.remarks and r.status == 'rejected' %}<small class="muted d-block" title="{{ r.remarks }}">{{ r.remarks|truncate(32) }}</small>{% endif %}
+            </div>
+          </td>
+          <td data-label="Requested"><span title="{{ r.requested_at|dt }}">{{ r.requested_at|ago }}</span></td>
+          <td class="hide-sm">
+            {% if r.action_by %}<span title="{{ r.action_at|dt }}">{{ r.action_by }}</span>{% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td class="actions-col">
+            <div class="row-actions">
+              {% set here = request.full_path %}
+              {% if r.status == 'pending' %}
+                <form method="post" action="{{ url_for('city.approve', id=r.id) }}" data-loading>
+                  {{ ui.csrf() }}<input type="hidden" name="next" value="{{ here }}">
+                  <button class="btn btn-sm btn-soft-good" type="submit">{{ ui.icon('check') }} Approve</button>
+                </form>
+              {% endif %}
+              {% if r.status == 'approved' %}
+                <form method="post" action="{{ url_for('city.release', id=r.id) }}"
+                      data-confirm="Release {{ r.quantity|num }} × {{ r.medicine }} to {{ r.barangay }}? City stock will be reduced."
+                      data-confirm-label="Release">
+                  {{ ui.csrf() }}<input type="hidden" name="next" value="{{ here }}">
+                  <button class="btn btn-sm btn-primary" type="submit">{{ ui.icon('truck-fast') }} Release</button>
+                </form>
+              {% endif %}
+              {% if r.status in ('pending', 'approved') %}
+                <form method="post" action="{{ url_for('city.reject', id=r.id) }}"
+                      data-confirm="Reject this request from {{ r.barangay }}?" data-confirm-label="Reject"
+                      data-confirm-tone="danger" data-confirm-input="remarks" data-confirm-input-label="Reason (shown to the barangay)">
+                  {{ ui.csrf() }}<input type="hidden" name="next" value="{{ here }}"><input type="hidden" name="remarks">
+                  <button class="btn btn-sm btn-ghost-bad" type="submit" aria-label="Reject">{{ ui.icon('xmark') }}</button>
+                </form>
+              {% endif %}
+              <a class="btn btn-sm btn-ghost" href="{{ url_for('city.request_details', id=r.id) }}" aria-label="View details">{{ ui.icon('chevron-right') }}</a>
+            </div>
+          </td>
         </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ ui.pager(page, pages, total, 'requests') }}
+  {% if selectable %}
+  <form id="bulkForm" method="post" action="{{ url_for('city.bulk_requests') }}" class="bulkbar" data-bulkbar>
+    {{ ui.csrf() }}<input type="hidden" name="next" value="{{ request.full_path }}"><input type="hidden" name="remarks">
+    <span class="bulkbar-count"><strong data-selected-count>0</strong> selected</span>
+    <span class="bulkbar-actions">
+      {% if status == 'pending' %}
+        <button type="submit" name="action" value="approve" class="btn btn-sm btn-soft-good">{{ ui.icon('check') }} Approve</button>
+        <button type="submit" name="action" value="reject" class="btn btn-sm btn-ghost-bad"
+                data-confirm="Reject the selected requests?" data-confirm-label="Reject all" data-confirm-tone="danger"
+                data-confirm-input="remarks" data-confirm-input-label="Reason (shown to the barangays)">{{ ui.icon('xmark') }} Reject</button>
+      {% elif status == 'approved' %}
+        <button type="submit" name="action" value="release" class="btn btn-sm btn-primary"
+                data-confirm="Release the selected requests? They are released oldest first; any without enough city stock are skipped."
+                data-confirm-label="Release all">{{ ui.icon('truck-fast') }} Release</button>
+      {% endif %}
+      {% if status in ('approved', 'released') %}
+        <button type="button" class="btn btn-sm btn-ghost" data-action="print-selected" data-url="{{ url_for('city.slips') }}">{{ ui.icon('print') }} Print slips</button>
+      {% endif %}
+      <button type="button" class="btn btn-sm btn-ghost" data-action="clear-selection" aria-label="Clear selection">{{ ui.icon('xmark') }}</button>
+    </span>
+  </form>
+  {% endif %}
+  {% else %}
+    {% if status == 'pending' and not search and not barangay_id %}
+      {{ ui.empty('No pending requests', 'New requests from barangays will appear here.', 'circle-check') }}
+    {% else %}
+      {{ ui.empty('No requests found', 'Try a different status tab or clear the filters.', 'magnifying-glass') }}
+    {% endif %}
+  {% endif %}
+</section>
 {% endblock %}

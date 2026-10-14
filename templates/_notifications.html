@@ -1,0 +1,40 @@
+{% set is_city = current_user.role == 'city' %}
+{% for n in items %}
+  {% set direct = n.source == 'direct' %}
+  {% if is_city %}
+    {% set tone, ic = ('warn', 'paper-plane') if n.status == 'pending' else ('neutral', 'ban') %}
+    {% set href = url_for('city.request_details', id=n.request_id) %}
+  {% else %}
+    {% set tone, ic = {'approved': ('info', 'circle-check'), 'released': ('good', 'truck-fast'),
+                       'rejected': ('bad', 'circle-xmark')}[n.status] %}
+    {% set href = url_for('barangay.request_detail', id=n.request_id) %}
+  {% endif %}
+  <a class="notif-item{% if n.unread %} is-unread{% endif %}" href="{{ href }}" role="menuitem">
+    <span class="list-icon tone-{{ tone }}"><i class="fa-solid fa-{{ ic }}" aria-hidden="true"></i></span>
+    <span class="notif-text">
+      {% if is_city %}
+        {% if n.status == 'pending' %}
+          <span><strong>{{ n.barangay }}</strong> requested {{ n.quantity|num }} × {{ n.medicine }}</span>
+        {% else %}
+          <span><strong>{{ n.barangay }}</strong> cancelled a request for {{ n.quantity|num }} × {{ n.medicine }}</span>
+        {% endif %}
+      {% elif n.status == 'approved' %}
+        <span>Your request for <strong>{{ n.quantity|num }} × {{ n.medicine }}</strong> was approved</span>
+      {% elif n.status == 'released' and direct %}
+        <span>The city sent you <strong>{{ n.quantity|num }} × {{ n.medicine }}</strong></span>
+      {% elif n.status == 'released' %}
+        <span><strong>{{ n.quantity|num }} × {{ n.medicine }}</strong> released to your barangay</span>
+      {% else %}
+        <span>Your request for <strong>{{ n.quantity|num }} × {{ n.medicine }}</strong> was rejected{% if n.note %}: “{{ n.note }}”{% endif %}</span>
+      {% endif %}
+      <small>{{ n.created_at|ago }}</small>
+    </span>
+    {% if n.unread %}<span class="notif-dot" aria-label="Unread"></span>{% endif %}
+  </a>
+{% else %}
+  <div class="notif-empty">
+    <i class="fa-solid fa-bell-slash" aria-hidden="true"></i>
+    <p>You're all caught up</p>
+    <small>{{ 'New requests from barangays will show up here.' if is_city else 'Updates on your requests will show up here.' }}</small>
+  </div>
+{% endfor %}

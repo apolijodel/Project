@@ -1,132 +1,125 @@
-{% extends "city/base_dashboard.html" %}
+{% extends "base.html" %}
+{% block title %}Forecast & Reports{% endblock %}
+{% block heading %}Forecast &amp; replenishment{% endblock %}
+{% block crumbs %}<p class="crumbs">ARIMA demand forecast and restock recommendations</p>{% endblock %}
+{% block head %}<script defer src="{{ asset('vendor/chart.umd.min.js') }}"></script>{% endblock %}
 
-{% block title %}Reports{% endblock %}
-
-{% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% block actions %}
+<form method="get" class="inline-form">
+  <label class="sr-only" for="weeks">Forecast horizon</label>
+  <select id="weeks" name="weeks" class="select select-sm" data-autosubmit>
+    {% for w in horizons %}<option value="{{ w }}"{% if w == horizon %} selected{% endif %}>Next {{ w }} week{{ 's' if w > 1 }}</option>{% endfor %}
+  </select>
+</form>
+<a class="btn btn-ghost hide-sm" href="{{ url_for('city.export_report', weeks=horizon) }}">{{ ui.icon('file-arrow-down') }} Export CSV</a>
+<button type="button" class="btn btn-ghost hide-sm" onclick="window.print()">{{ ui.icon('print') }} Print</button>
 {% endblock %}
 
 {% block content %}
+<section class="stats">
+  {{ ui.stat('Critical', summary.critical, 'triangle-exclamation', 'bad', 'Stock below forecast demand') }}
+  {{ ui.stat('Low', summary.low, 'arrow-trend-down', 'warn', 'Below ' ~ safety_pct ~ '% safety stock') }}
+  {{ ui.stat('Adequate', summary.adequate, 'circle-check', 'good', 'Covered for ' ~ horizon ~ ' week' ~ ('s' if horizon > 1 else '')) }}
+  {{ ui.stat('Units to restock', restock_units, 'boxes-packing', 'brand', 'Across ' ~ (summary.critical + summary.low) ~ ' medicines') }}
+</section>
 
-<div class="page-header">
-    <h2>Medicine Usage Report</h2>
-</div>
-
-<!-- ================= FILTER ================= -->
-<div class="filter-bar">
-
-    <label>Search Medicine:</label>
-
-    <input 
-        type="text" 
-        id="searchInput"
-        placeholder="Search medicine..."
-    >
-
-</div>
-
-<!-- ================= CHART ================= -->
-<div class="chart-card">
-    <div class="chart-wrapper">
-        <canvas id="medicineChart"></canvas>
+<section class="card">
+  <header class="card-head">
+    <div>
+      <h2>City stock vs. forecast demand</h2>
+      <p class="card-sub">Next {{ horizon }} week{{ 's' if horizon > 1 }} · most urgent first · medicines with no forecast demand are hidden</p>
     </div>
-</div>
+  </header>
+  {% if charted %}
+  <div class="chart-box" style="--h: {{ [charted|length * 34 + 70, 220]|max }}px">
+    <canvas id="outlookChart" role="img" aria-label="Horizontal bar chart comparing city stock with forecast demand for each medicine"></canvas>
+  </div>
+  {% else %}
+    {{ ui.empty('No demand to forecast yet', 'Forecasts appear once barangays have submitted requests in the last year. Tip: run “python setup_db.py --demo” to load sample history.', 'chart-line') }}
+  {% endif %}
+</section>
 
-<!-- ================= DECISION TABLE ================= -->
-<div class="table-section">
-    <h3>Decision Support Table</h3>
+<section class="card card-flush">
+  <header class="card-head card-head-pad">
+    <div>
+      <h2>Decision support table</h2>
+      <p class="card-sub"><span data-filter-count>{{ rows|length }}</span> medicines · {{ arima_count }} modelled with ARIMA</p>
+    </div>
+  </header>
+  <div class="toolbar" data-filter data-filter-items="#reportTable tbody tr">
+    <label class="search">
+      {{ ui.icon('magnifying-glass') }}
+      <input type="search" data-filter-text placeholder="Search medicine" aria-label="Search medicine">
+    </label>
+    <select class="select" data-filter-key="risk" aria-label="Filter by risk">
+      <option value="">All risk levels</option>
+      <option value="critical">Critical</option>
+      <option value="low">Low</option>
+      <option value="adequate">Adequate</option>
+      <option value="idle">No demand</option>
+    </select>
+  </div>
+  <div class="table-wrap">
+    <table class="table" id="reportTable">
+      <thead>
+        <tr>
+          <th>Medicine</th>
+          <th class="num">City stock</th>
+          <th class="num" title="Average units requested per week over the last 8 weeks">Avg / week</th>
+          <th class="num">Forecast ({{ horizon }} wk)</th>
+          <th class="num">Weeks of cover</th>
+          <th>Risk</th>
+          <th class="num">Restock</th>
+          <th>Model</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr data-risk="{{ r.risk }}">
+          <td><strong>{{ r.name }}</strong></td>
+          <td class="num">{{ r.stock|num }}</td>
+          <td class="num">{{ r.recent_avg|num(1) }}</td>
+          <td class="num">{{ r.demand|num }}</td>
+          <td class="num">{{ r.cover_weeks|num(1) if r.cover_weeks is not none else '—' }}</td>
+          <td>{{ ui.risk_pill(r.risk) }}</td>
+          <td class="num">
+            {% if r.recommended %}
+              <a class="row-link" href="{{ url_for('city.add_stock', medicine=r.id) }}#restock" title="Restock {{ r.name }}"><strong>{{ r.recommended|num }}</strong></a>
+            {% else %}<span class="muted">0</span>{% endif %}
+          </td>
+          <td><small class="muted">{{ r.method }}</small></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div data-filter-empty hidden>{{ ui.empty('No medicines match', 'Try another search or risk level.', 'magnifying-glass') }}</div>
+  </div>
+</section>
 
-    <table id="reportTable">
-        <thead>
-            <tr>
-                <th>Medicine</th>
-                <th>Actual Usage</th>
-                <th>Forecast</th>
-                <th>Risk Level</th>
-                <th>Recommended Supply</th>
-            </tr>
-        </thead>
+<details class="card method">
+  <summary>{{ ui.icon('circle-info') }} How the forecast and recommendations work</summary>
+  <ol>
+    <li><strong>Demand</strong> is the number of units barangays requested each week (pending, approved and released requests; rejected and cancelled ones are excluded). Weeks with no requests count as zero.</li>
+    <li><strong>Forecast:</strong> each medicine with at least 12 weeks of history and 6 active weeks is modelled with <strong>ARIMA(1,1,1)</strong> over the last 52 weeks. Others use a 4-week moving average.</li>
+    <li><strong>Safety stock target</strong> = forecast demand × {{ 100 + safety_pct }}%. <strong>Restock</strong> = target − current city stock (never below zero).</li>
+    <li><strong>Risk:</strong> Critical if stock is below forecast demand, Low if it is below the safety target, Adequate otherwise.</li>
+  </ol>
+</details>
+{% endblock %}
 
-        <tbody>
-        {% for i in range((chart_labels or [])|length) %}
-            <tr>
-
-                <td>{{ chart_labels[i] }}</td>
-                <td>{{ chart_actual[i] }}</td>
-                <td>{{ chart_forecast[i] }}</td>
-
-                <td>
-                    <span class="risk-status {{ risk_levels[i]|lower }}">
-                        {{ risk_levels[i] if risk_levels|length > i else "No Data" }}
-                    </span>
-                </td>
-
-                <td>{{ recommendations[i] }}</td>
-
-            </tr>
-        {% endfor %}
-        </tbody>
-    <table id="reportTable">
-</div>
-
-<!-- ================= SCRIPT ================= -->
+{% block scripts %}
+{% if charted %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-
-    // ================= CHART =================
-    const labels = {{ chart_labels | default([]) | tojson }};
-    const actual = {{ chart_actual | default([]) | tojson }};
-    const forecast = {{ chart_forecast | default([]) | tojson }};
-
-    const ctx = document.getElementById('medicineChart');
-
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Actual Usage',
-                    data: actual,
-                    backgroundColor: 'rgba(54,162,235,0.6)'
-                },
-                {
-                    label: 'Forecast (ARIMA)',
-                    data: forecast,
-                    backgroundColor: 'rgba(255,99,132,0.6)'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
-
-    // ================= TABLE SEARCH FILTER =================
-    const searchInput = document.getElementById("searchInput");
-    const table = document.getElementById("reportTable");
-    const rows = table.getElementsByTagName("tr");
-
-    if (searchInput && table) {
-        searchInput.addEventListener("keyup", function () {
-
-            const value = this.value.toLowerCase();
-
-            for (let i = 1; i < rows.length; i++) {
-
-                const firstCell = rows[i].getElementsByTagName("td")[0];
-
-                if (!firstCell) continue;
-
-                const text = firstCell.textContent.toLowerCase();
-
-                rows[i].style.display = text.includes(value) ? "" : "none";
-            }
-        });
-    }
-
+  DASRS.barChart("outlookChart", {
+    labels: {{ charted|map(attribute='name')|list|tojson }},
+    horizontal: true,
+    series: [
+      { label: "City stock", data: {{ charted|map(attribute='stock')|list|tojson }} },
+      { label: "Forecast demand ({{ horizon }} wk)", data: {{ charted|map(attribute='demand')|list|tojson }} }
+    ]
+  });
 });
 </script>
-
+{% endif %}
 {% endblock %}

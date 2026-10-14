@@ -1,110 +1,124 @@
-{% extends "barangay/base_barangay.html" %}
-
+{% extends "base.html" %}
 {% block title %}Inventory{% endblock %}
+{% block heading %}Inventory{% endblock %}
+{% block crumbs %}<p class="crumbs">{{ inventory|length }} medicines · {{ total_units|num }} units on hand</p>{% endblock %}
 
 {% block content %}
+<section class="grid grid-1-2 grid-form">
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Record dispensing</h2>
+        <p class="card-sub">Deduct medicines given to patients</p>
+      </div>
+      <span class="list-icon tone-info">{{ ui.icon('hand-holding-medical') }}</span>
+    </header>
+    {% set available = inventory|selectattr('stock', 'gt', 0)|list %}
+    {% if available %}
+    <form method="post" class="form" data-loading>
+      {{ ui.csrf() }}
+      <label class="field">
+        <span class="field-label">Medicine</span>
+        <select name="medicine_id" class="select" required>
+          <option value="" disabled{% if not form.get('medicine_id') %} selected{% endif %}>Choose a medicine</option>
+          {% for i in available %}
+          <option value="{{ i.id }}" data-stock="{{ i.stock }}"{% if i.id|string == form.get('medicine_id') %} selected{% endif %}>{{ i.name }} — {{ i.stock|num }} available</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">Quantity dispensed</span>
+        <input type="number" name="quantity" class="input" min="1" step="1" required inputmode="numeric"
+               value="{{ form.get('quantity', '') }}" placeholder="Units" data-max-from="medicine_id">
+      </label>
+      <label class="field">
+        <span class="field-label">Note <span class="muted">(optional)</span></span>
+        <input type="text" name="note" class="input" maxlength="255" value="{{ form.get('note', '') }}" placeholder="e.g. Health center consultations">
+      </label>
+      <button type="submit" class="btn btn-primary">{{ ui.icon('minus') }} Deduct from stock</button>
+    </form>
+    {% else %}
+      {{ ui.empty('Nothing to dispense', 'You have no medicines in stock right now.', 'box-open') }}
+    {% endif %}
+  </article>
 
-<div class="inventory-container">
-
-    <h2>My Inventory</h2>
-
-    <!-- SEARCH BAR -->
-    <div class="inventory-search">
-        <input
-            type="text"
-            id="searchInput"
-            class="search-input"
-            placeholder="Search medicine..."
-        >
+  <article class="card card-flush">
+    <header class="card-head card-head-pad">
+      <div>
+        <h2>Medicines on hand</h2>
+        <p class="card-sub">
+          {% if out_count %}<span class="text-bad">{{ out_count }} out of stock</span> · {% endif %}
+          {% if low_count %}<span class="text-warn">{{ low_count }} low</span> · {% endif %}
+          <span data-filter-count>{{ inventory|length }}</span> shown
+        </p>
+      </div>
+    </header>
+    {% if inventory %}
+    <div class="toolbar" data-filter data-filter-items="#inventoryTable tbody tr">
+      <label class="search">
+        {{ ui.icon('magnifying-glass') }}
+        <input type="search" data-filter-text placeholder="Search medicine" aria-label="Search medicine">
+      </label>
+      <select class="select" data-filter-key="level" aria-label="Filter by stock level">
+        <option value="">All levels</option>
+        <option value="out">Out of stock</option>
+        <option value="low">Low stock</option>
+        <option value="ok">In stock</option>
+      </select>
     </div>
-
-    <!-- DEDUCT FORM -->
-    <div class="inventory-card">
-
-        <h3>Deduct Medicine</h3>
-
-        <form method="POST" class="deduct-form">
-
-            <select name="medicine_id" class="medicine-select" required>
-                {% for i in inventory %}
-                <option value="{{ i.id }}">
-                    {{ i.name }} (Stock: {{ i.stock }})
-                </option>
-                {% endfor %}
-            </select>
-
-            <input
-                type="number"
-                name="quantity"
-                class="quantity-input"
-                min="1"
-                placeholder="Quantity"
-                required
-            >
-
-            <button type="submit" class="deduct-btn">
-                Deduct
-            </button>
-
-        </form>
-
+    <div class="table-wrap">
+      <table class="table" id="inventoryTable">
+        <thead><tr><th>Medicine</th><th class="num">Stock</th><th class="meter-col">Level</th><th>Status</th><th class="actions-col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody>
+        {% for i in inventory %}
+          <tr data-level="{{ 'out' if i.stock == 0 else ('low' if i.stock <= low_threshold else 'ok') }}">
+            <td><strong>{{ i.name }}</strong><small class="muted d-block">Updated {{ i.updated_at|ago }}</small></td>
+            <td class="num">{{ i.stock|num }}</td>
+            <td class="meter-col">{{ ui.stock_meter(i.stock, low_threshold) }}</td>
+            <td>{{ ui.stock_pill(i.stock, low_threshold) }}</td>
+            <td class="actions-col">
+              {% if i.stock <= low_threshold %}
+                <a class="btn btn-sm btn-ghost" href="{{ url_for('barangay.request_supplies', medicine=i.id) }}">Request</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div data-filter-empty hidden>{{ ui.empty('No medicines match', '', 'magnifying-glass') }}</div>
     </div>
+    {% else %}
+      {% call ui.empty('Your inventory is empty', 'Medicines appear here once the city releases a request to your barangay.', 'box-open') %}
+        <a class="btn btn-primary" href="{{ url_for('barangay.request_supplies') }}">{{ ui.icon('paper-plane') }} Request supplies</a>
+      {% endcall %}
+    {% endif %}
+  </article>
+</section>
 
-    <!-- INVENTORY TABLE -->
-    <div class="inventory-card">
-
-        <h3>Available Medicines</h3>
-
-        <table class="inventory-table">
-            <thead>
-                <tr>
-                    <th>Medicine</th>
-                    <th>Stock</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                {% for i in inventory %}
-                <tr>
-                    <td>{{ i.name }}</td>
-                    <td>{{ i.stock }}</td>
-
-                    <td>
-                        {% if i.stock == 0 %}
-                            <span class="out-stock">Out of Stock</span>
-                        {% elif i.stock <= 20 %}
-                            <span class="low-stock">Low Stock</span>
-                        {% else %}
-                            <span class="normal-stock">Normal Stock</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-
-        </table>
-
+<section class="card">
+  <header class="card-head">
+    <div>
+      <h2>Stock activity</h2>
+      <p class="card-sub">Deliveries received and medicines dispensed</p>
     </div>
-
-</div>
-
-<!-- LIVE SEARCH SCRIPT -->
-<script>
-document.getElementById("searchInput").addEventListener("keyup", function () {
-    let filter = this.value.toLowerCase();
-    let rows = document.querySelectorAll(".inventory-table tbody tr");
-
-    rows.forEach(row => {
-        let medicine = row.cells[0].textContent.toLowerCase();
-
-        if (medicine.includes(filter)) {
-            row.style.display = "";
-        } else {
-            row.style.display = "none";
-        }
-    });
-});
-</script>
-
+  </header>
+  {% if log %}
+  <ul class="timeline">
+    {% for e in log %}
+    <li class="timeline-item">
+      <span class="list-icon tone-{{ 'good' if e.movement == 'release' else 'info' }}">{{ ui.icon('truck-fast' if e.movement == 'release' else 'hand-holding-medical') }}</span>
+      <div>
+        <p>
+          {% if e.movement == 'release' %}<strong>+{{ e.quantity|num }}</strong> {{ e.medicine }} received from the city
+          {% else %}<strong>−{{ e.quantity|num }}</strong> {{ e.medicine }} dispensed{% endif %}
+        </p>
+        <small class="muted">{{ e.performed_by or 'system' }} · {{ e.created_at|ago }}{% if e.note %} · {{ e.note }}{% endif %}</small>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    {{ ui.empty('No activity yet', 'Deliveries and dispensing records will appear here.', 'clock-rotate-left') }}
+  {% endif %}
+</section>
 {% endblock %}

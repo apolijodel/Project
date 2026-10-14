@@ -1,101 +1,166 @@
-{% extends "city/base_dashboard.html" %}
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block heading %}City overview{% endblock %}
+{% block crumbs %}<p class="crumbs">{{ today.strftime('%A, %B %d, %Y').replace(' 0', ' ') }}</p>{% endblock %}
 
-{% block title %}City Dashboard{% endblock %}
+{% block head %}<script defer src="{{ asset('vendor/chart.umd.min.js') }}"></script>{% endblock %}
 
-{% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% block actions %}
+<a class="btn btn-primary hide-sm" href="{{ url_for('city.supply') }}">{{ ui.icon('plus') }} New distribution</a>
 {% endblock %}
 
 {% block content %}
+<section class="stats">
+  {{ ui.stat('Pending requests', stats.pending, 'clock', 'warn', 'Awaiting approval',
+             url_for('city.view_requests', status='pending')) }}
+  {{ ui.stat('Ready for release', stats.approved, 'truck-ramp-box', 'info', 'Approved, not yet released',
+             url_for('city.view_requests', status='approved')) }}
+  {{ ui.stat('Units released', stats.released_30d, 'truck-fast', 'good', 'Last 30 days') }}
+  {{ ui.stat('Medicines at risk', at_risk|length, 'triangle-exclamation', 'bad' if critical_count else 'brand',
+             critical_count ~ ' critical · next ' ~ horizon ~ ' weeks', url_for('city.reports')) }}
+</section>
 
-<!-- ================= STATS CARDS ================= -->
-<div class="stats-cards">
-
-    <div class="stats-card">
-        <h3>Total Barangays</h3>
-        <p>{{ total_barangays }}</p>
+<section class="grid grid-2-1">
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Weekly demand</h2>
+        <p class="card-sub">Units requested by all barangays · last 12 full weeks</p>
+      </div>
+      <span class="chip">{{ ui.icon('map-location-dot') }} {{ barangay_count }} barangays</span>
+    </header>
+    <div class="chart-box" style="--h: 280px">
+      <canvas id="trendChart" role="img" aria-label="Line chart of units requested per week for the last 12 weeks"></canvas>
     </div>
+  </article>
 
-    <div class="stats-card">
-        <h3>Total Requests</h3>
-        <p>{{ total_requests }}</p>
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Request status</h2>
+        <p class="card-sub">{{ stats.total|num }} requests recorded</p>
+      </div>
+    </header>
+    {% set order = ['pending', 'approved', 'released', 'rejected', 'cancelled'] %}
+    {% set total = stats.total or 1 %}
+    <div class="split-bar" role="img" aria-label="Share of requests by status">
+      {% for s in order if status_counts.get(s) %}
+        <span class="seg seg-{{ ui.STATUS[s][0] }}" style="--w: {{ (status_counts[s] / total * 100)|round(1) }}%"
+              title="{{ ui.STATUS[s][2] }}: {{ status_counts[s] }}"></span>
+      {% endfor %}
     </div>
+    <ul class="legend-list">
+      {% for s in order %}
+      {% set n = status_counts.get(s, 0) %}
+      <li>
+        <span class="dot dot-{{ ui.STATUS[s][0] }}"></span>
+        <span>{{ ui.STATUS[s][2] }}</span>
+        <strong>{{ n|num }}</strong>
+        <span class="muted">{{ (n / total * 100)|round|int }}%</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </article>
+</section>
 
-    <div class="stats-card">
-        <h3>Pending Approvals</h3>
-        <p>{{ pending_approvals }}</p>
+<section class="grid grid-2">
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Waiting for approval</h2>
+        <p class="card-sub">Oldest requests first</p>
+      </div>
+      <a class="link" href="{{ url_for('city.view_requests', status='pending') }}">View all {{ ui.icon('arrow-right') }}</a>
+    </header>
+    {% if pending %}
+    <ul class="list">
+      {% for r in pending %}
+      <li class="list-item">
+        <span class="list-icon tone-warn">{{ ui.icon('clock') }}</span>
+        <span class="list-main">
+          <strong>{{ r.medicine }} <span class="muted">× {{ r.quantity|num }}</span></strong>
+          <small>{{ r.barangay }} · {{ r.requested_at|ago }}</small>
+        </span>
+        {% if r.quantity > r.stock %}
+          <span class="pill pill-bad" title="City stock: {{ r.stock }}">{{ ui.icon('triangle-exclamation') }}Short</span>
+        {% endif %}
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('city.request_details', id=r.id) }}">Review</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      {{ ui.empty('All caught up', 'There are no requests waiting for approval.', 'circle-check') }}
+    {% endif %}
+  </article>
+
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Stock at risk</h2>
+        <p class="card-sub">City stock vs. forecast demand, next {{ horizon }} weeks</p>
+      </div>
+      <a class="link" href="{{ url_for('city.reports') }}">Full report {{ ui.icon('arrow-right') }}</a>
+    </header>
+    {% if at_risk %}
+    <ul class="list">
+      {% for m in at_risk[:6] %}
+      <li class="list-item">
+        <span class="list-icon tone-{{ ui.RISK[m.risk][0] }}">{{ ui.icon(ui.RISK[m.risk][1]) }}</span>
+        <span class="list-main">
+          <strong>{{ m.name }}</strong>
+          <small>{{ m.stock|num }} in stock · {{ m.demand|num }} forecast · restock {{ m.recommended|num }}</small>
+        </span>
+        {{ ui.risk_pill(m.risk) }}
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('city.add_stock', medicine=m.id) }}#restock">Restock</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% elif not has_demand %}
+      {{ ui.empty('No recent demand to forecast', 'There were no barangay requests in the last year of completed weeks, so nothing can be forecast yet.', 'chart-line') }}
+    {% else %}
+      {{ ui.empty('Stock levels look healthy', 'No medicine is forecast to run short in the next ' ~ horizon ~ ' weeks.', 'shield-heart') }}
+    {% endif %}
+  </article>
+</section>
+
+<section class="card">
+  <header class="card-head">
+    <div>
+      <h2>Recent distributions</h2>
+      <p class="card-sub">Latest medicines released to barangays</p>
     </div>
-
-    <div class="stats-card">
-        <h3>Supplies Distributed</h3>
-        <p>{{ total_supplies }}</p>
-    </div>
-
-</div>
-
-<!-- ================= CHART ================= -->
-<div class="usage-report">
-    <h2>Top Medicine Usage</h2>
-</div>
-
-<div class="chart-card">
-    <div class="chart-wrapper">
-        <canvas id="dashboardChart"></canvas>
-    </div>
-</div>
-
-<!-- ================= RECENT ACTIVITY ================= -->
-<div class="table-section">
-    <h2>Recent Supply Distribution</h2>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Barangay</th>
-                <th>Medicine</th>
-                <th>Quantity</th>
-                <th>Date</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            {% for h in history %}
-            <tr>
-                <td>{{ h.barangay }}</td>
-                <td>{{ h.medicine }}</td>
-                <td>{{ h.quantity }}</td>
-                <td>{{ h.date }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
+    <a class="link" href="{{ url_for('city.view_requests', status='released') }}">View history {{ ui.icon('arrow-right') }}</a>
+  </header>
+  {% if recent %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Barangay</th><th>Medicine</th><th class="num">Quantity</th><th>Released</th></tr></thead>
+      <tbody>
+        {% for r in recent %}
+        <tr>
+          <td><strong>{{ r.barangay }}</strong></td>
+          <td>{{ r.medicine }} {{ ui.source_tag(r.source) }}</td>
+          <td class="num">{{ r.quantity|num }}</td>
+          <td><span title="{{ r.released_at|dt }}">{{ r.released_at|ago }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
-</div>
+  </div>
+  {% else %}
+    {{ ui.empty('No distributions yet', 'Released requests and direct distributions will appear here.', 'truck-fast') }}
+  {% endif %}
+</section>
+{% endblock %}
 
-<!-- ================= SCRIPT ================= -->
+{% block scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-
-    const labels = {{ chart_labels | default([]) | tojson | safe }};
-    const values = {{ chart_values | default([]) | tojson | safe }};
-
-    const ctx = document.getElementById('dashboardChart');
-
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Stock',
-                data: values
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
-
+  DASRS.lineChart("trendChart", {
+    labels: {{ trend_labels|tojson }},
+    emptyText: "No requests in the last 12 weeks",
+    series: [{ label: "Units requested", data: {{ trend_values|tojson }}, area: true }]
+  });
 });
 </script>
-
 {% endblock %}

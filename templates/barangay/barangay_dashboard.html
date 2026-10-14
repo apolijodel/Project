@@ -1,130 +1,105 @@
-{% extends "barangay/base_barangay.html" %}
-
+{% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
+{% block heading %}Barangay {{ current_user.barangay_name }}{% endblock %}
+{% block crumbs %}<p class="crumbs">{{ today.strftime('%A, %B %d, %Y').replace(' 0', ' ') }}</p>{% endblock %}
+{% block head %}<script defer src="{{ asset('vendor/chart.umd.min.js') }}"></script>{% endblock %}
+
+{% block actions %}
+<a class="btn btn-primary hide-sm" href="{{ url_for('barangay.request_supplies') }}">{{ ui.icon('paper-plane') }} Request supplies</a>
+{% endblock %}
 
 {% block content %}
+<section class="stats">
+  {{ ui.stat('Items in stock', inventory|length - out_count, 'box-open', 'brand', in_stock_units|num ~ ' units on hand', url_for('barangay.inventory')) }}
+  {{ ui.stat('Low stock', low_stock|length - out_count, 'triangle-exclamation', 'warn', 'At or below ' ~ low_threshold ~ ' units') }}
+  {{ ui.stat('Out of stock', out_count, 'circle-xmark', 'bad' if out_count else 'brand', 'Needs a new request') }}
+  {{ ui.stat('Pending requests', status_counts.get('pending', 0), 'clock', 'info',
+             status_counts.get('approved', 0)|string ~ ' approved, awaiting release',
+             url_for('barangay.request_supplies', status='pending')) }}
+</section>
 
-<h2 class="page-title">Barangay Overview Dashboard</h2>
-
-<!-- ================= TOP SUMMARY CARDS ================= -->
-<div class="stats-cards">
-
-    <div class="card">
-        <h3>Welcome</h3>
-        <p>{{ username }}</p>
+<section class="grid grid-2-1">
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Supplies received</h2>
+        <p class="card-sub">Units released to your barangay · last 12 full weeks</p>
+      </div>
+    </header>
+    <div class="chart-box" style="--h: 330px">
+      <canvas id="receivedChart" role="img" aria-label="Units received per week over the last 12 weeks"></canvas>
     </div>
+  </article>
 
-    <div class="card">
-        <h3>Total Medicines</h3>
-        <p>{{ inventory|length }}</p>
-    </div>
-
-    <div class="card alert">
-        <h3>Low Stock Alerts</h3>
-        <p>{{ low_stock|length }}</p>
-    </div>
-
-</div>
-
-<!-- ================= LOW STOCK ALERT ================= -->
-{% if low_stock %}
-<div class="table-section">
-    <h3>Low Stock Warning</h3>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Medicine</th>
-                <th>Stock Left</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            {% for item in low_stock[:5] %}
-            <tr>
-                <td>{{ item.name }}</td>
-                <td>{{ item.stock }}</td>
-                <td>
-                    <span class="status critical">
-                        Low Stock
-                    </span>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    {% if low_stock|length > 5 %}
-    <p class="table-note">
-        Showing 5 of {{ low_stock|length }} low stock medicines
-    </p>
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Suggested request</h2>
+        <p class="card-sub">Based on how fast you use each medicine</p>
+      </div>
+    </header>
+    {% if suggestions %}
+    <ul class="list">
+      {% for s in suggestions[:5] %}
+      <li class="list-item">
+        <span class="list-icon tone-{{ 'bad' if s.stock == 0 else 'warn' }}">{{ ui.icon('circle-xmark' if s.stock == 0 else 'arrow-trend-down') }}</span>
+        <span class="list-main">
+          <strong>{{ s.name }}</strong>
+          <small>{{ 'Out of stock' if s.stock == 0 else s.stock|num ~ (' unit left' if s.stock == 1 else ' units left') }}{% if s.cover_weeks is not none and s.stock %}{% set days = [(s.cover_weeks * 7)|round|int, 1]|max %} · ~{{ days }} day{{ 's' if days != 1 }} left{% endif %}</small>
+        </span>
+        <span class="chip" title="Suggested quantity">+{{ s.suggested|num }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <a class="btn btn-primary btn-block suggest-cta" href="{{ url_for('barangay.request_supplies', suggested=1) }}">
+      {{ ui.icon('wand-magic-sparkles') }} Request {{ 'all ' ~ suggestions|length ~ ' items' if suggestions|length > 1 else 'it' }}
+    </a>
+    {% else %}
+      {{ ui.empty('Nothing to restock right now', 'You have enough stock for the next couple of weeks.', 'shield-heart') }}
     {% endif %}
-</div>
-{% endif %}
+  </article>
+</section>
 
-<!-- ================= INVENTORY PREVIEW ================= -->
-<div class="table-section">
-    <h3>Inventory Snapshot</h3>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Medicine</th>
-                <th>Quantity</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            {% for i in inventory[:5] %}
-            <tr>
-                <td>{{ i.name }}</td>
-                <td>{{ i.stock }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<!-- ================= REQUEST HISTORY ================= -->
-<div class="table-section">
-    <h3>Recent Requests (Last 5)</h3>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Medicine</th>
-                <th>Qty</th>
-                <th>Status</th>
-                <th>Date</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            {% for r in requests %}
-            <tr>
-                <td>{{ r.medicine }}</td>
-                <td>{{ r.quantity }}</td>
-                <td>
-                    <span class="status {{ r.status }}">{{ r.status }}</span>
-                </td>
-                <td>{{ r.date }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<!-- ================= STATUS TRACKER ================= -->
-<div class="stats-cards">
-
-    {% for s in status_counts %}
-    <div class="card">
-        <h3>{{ s.status }}</h3>
-        <p>{{ s.count }}</p>
+<section class="card card-flush">
+  <header class="card-head card-head-pad">
+    <div>
+      <h2>Recent requests</h2>
+      <p class="card-sub">Track the status of what you asked for</p>
     </div>
-    {% endfor %}
+    <a class="link" href="{{ url_for('barangay.request_supplies') }}">View all {{ ui.icon('arrow-right') }}</a>
+  </header>
+  {% if recent %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Medicine</th><th class="num">Quantity</th><th>Status</th><th>Requested</th></tr></thead>
+      <tbody>
+      {% for r in recent %}
+        <tr>
+          <td><strong>{{ r.medicine }}</strong>{% if r.remarks and r.status == 'rejected' %}<small class="muted d-block">{{ r.remarks }}</small>{% endif %}</td>
+          <td class="num">{{ r.quantity|num }}</td>
+          <td>{{ ui.status_pill(r.status) }}</td>
+          <td><span title="{{ r.requested_at|dt }}">{{ r.requested_at|ago }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {% call ui.empty('No requests yet', 'Request medicines from the City Health Office when your stock runs low.', 'paper-plane') %}
+      <a class="btn btn-primary" href="{{ url_for('barangay.request_supplies') }}">{{ ui.icon('paper-plane') }} Make a request</a>
+    {% endcall %}
+  {% endif %}
+</section>
+{% endblock %}
 
-</div>
-
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  DASRS.barChart("receivedChart", {
+    labels: {{ chart_labels|tojson }},
+    emptyText: "Nothing received in the last 12 weeks",
+    series: [{ label: "Units received", data: {{ chart_values|tojson }} }]
+  });
+});
+</script>
 {% endblock %}

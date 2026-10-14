@@ -1,0 +1,157 @@
+{% import "_macros.html" as ui with context %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% endblock %} · Pasig DASRS</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <link rel="icon" type="image/png" href="{{ asset('logo.png') }}">
+  <link rel="preload" href="{{ url_for('static', filename='vendor/fonts/plus-jakarta-sans-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ asset('vendor/fontawesome/css/fontawesome.min.css') }}">
+  <link rel="stylesheet" href="{{ asset('vendor/fontawesome/css/solid.min.css') }}">
+  <link rel="stylesheet" href="{{ asset('style.css') }}">
+  <script>try{if(localStorage.getItem("dasrs:sidebar")==="collapsed")document.documentElement.classList.add("sb-collapsed")}catch(e){}</script>
+  {% block head %}{% endblock %}
+  <script defer src="{{ asset('app.js') }}"></script>
+</head>
+<body class="app">
+<div class="progress" aria-hidden="true"></div>
+<a class="skip-link" href="#content">Skip to content</a>
+{% set is_city = current_user.role == 'city' %}
+{% if is_city %}
+  {% set nav = [
+    ('Overview', [
+      ('city.dashboard', 'Dashboard', 'gauge-high', [], None),
+      ('city.reports', 'Forecast & Reports', 'chart-line', [], None),
+    ]),
+    ('Operations', [
+      ('city.view_requests', 'Requests', 'clipboard-list', ['city.request_details'], nav_counts.get('requests')),
+      ('city.supply', 'Distribution', 'truck-fast', [], None),
+      ('city.add_stock', 'City Stock', 'boxes-stacked', [], None),
+    ]),
+    ('Management', [
+      ('city.all_barangays', 'Barangays', 'map-location-dot', ['city.barangay_detail'], None),
+      ('city.activity', 'Activity Log', 'clock-rotate-left', [], None),
+      ('city.manage_users', 'User Accounts', 'users-gear', [], None),
+    ]),
+  ] %}
+{% else %}
+  {% set nav = [
+    ('Barangay', [
+      ('barangay.dashboard', 'Dashboard', 'gauge-high', [], None),
+      ('barangay.request_supplies', 'Request Supplies', 'paper-plane', ['barangay.request_detail'], None),
+      ('barangay.inventory', 'Inventory', 'box-open', [], None),
+    ]),
+  ] %}
+{% endif %}
+
+<aside class="sidebar" id="sidebar" aria-label="Main navigation">
+  <a class="brand" href="{{ url_for('auth.home') }}">
+    <img src="{{ asset('logo.png') }}" alt="" width="38" height="38">
+    <span class="brand-text">
+      <strong>Pasig DASRS</strong>
+      <small>{{ 'City Health Office' if is_city else 'Brgy. ' ~ current_user.barangay_name }}</small>
+    </span>
+  </a>
+
+  <nav class="nav">
+    {% for section, items in nav %}
+      <p class="nav-section">{{ section }}</p>
+      {% for endpoint, label, ic, also, badge in items %}
+        {% set active = request.endpoint == endpoint or request.endpoint in also %}
+        <a class="nav-link{% if active %} is-active{% endif %}" href="{{ url_for(endpoint) }}"
+           data-tip="{{ label }}"{% if active %} aria-current="page"{% endif %}>
+          {{ ui.icon(ic, 'nav-icon') }}
+          <span class="nav-label">{{ label }}</span>
+          {% if badge %}<span class="nav-badge">{{ badge }}</span>{% endif %}
+        </a>
+      {% endfor %}
+    {% endfor %}
+  </nav>
+
+  <div class="sidebar-foot">
+    <button type="button" class="nav-link collapse-btn" data-action="toggle-sidebar" data-tip="Expand menu" aria-label="Collapse menu">
+      {{ ui.icon('angles-left', 'nav-icon') }}<span class="nav-label">Collapse</span>
+    </button>
+  </div>
+</aside>
+<div class="backdrop" data-action="close-nav"></div>
+
+<div class="main">
+  <header class="topbar">
+    <button type="button" class="icon-btn menu-btn" data-action="open-nav" aria-label="Open menu">{{ ui.icon('bars') }}</button>
+    <div class="topbar-title">
+      {% block crumbs %}{% endblock %}
+      <h1>{% block heading %}{{ self.title() }}{% endblock %}</h1>
+    </div>
+    <div class="topbar-actions">
+      {% block actions %}{% endblock %}
+      {% set unread = nav_counts.get('notifications', 0) %}
+      <div class="notif" data-menu data-notif data-feed="{{ url_for('account.notification_feed') }}"
+           data-seen="{{ url_for('account.notifications_seen') }}">
+        <button type="button" class="icon-btn notif-btn" data-action="toggle-menu" aria-haspopup="true" aria-expanded="false"
+                aria-label="Notifications{% if unread %}, {{ unread }} unread{% endif %}">
+          {{ ui.icon('bell') }}
+          {% if unread %}<span class="notif-count">{{ '9+' if unread > 9 else unread }}</span>{% endif %}
+        </button>
+        <div class="menu notif-panel" role="menu">
+          <div class="notif-head">
+            <strong>Notifications</strong>
+            <a class="link" href="{{ url_for('city.view_requests', status='pending') if is_city else url_for('barangay.request_supplies') }}">View requests</a>
+          </div>
+          <div class="notif-list" data-notif-list>
+            <div class="notif-loading"><span class="spinner"></span> Loading…</div>
+          </div>
+        </div>
+      </div>
+      <div class="user-menu" data-menu>
+        <button type="button" class="user-chip" data-action="toggle-menu" aria-haspopup="true" aria-expanded="false">
+          <span class="avatar">{{ current_user.username[:2]|upper }}</span>
+          <span class="user-meta">
+            <strong>{{ current_user.username }}</strong>
+            <small>{{ 'City Administrator' if is_city else 'Barangay Health Worker' }}</small>
+          </span>
+          {{ ui.icon('chevron-down', 'chev') }}
+        </button>
+        <div class="menu" role="menu">
+          <div class="menu-head">
+            <strong>{{ current_user.username }}</strong>
+            <small>{{ 'City Health Office' if is_city else 'Barangay ' ~ current_user.barangay_name }}</small>
+          </div>
+          <a class="menu-item" role="menuitem" href="{{ url_for('account.change_password') }}">{{ ui.icon('key') }} Change password</a>
+          <form method="post" action="{{ url_for('auth.logout') }}">
+            {{ ui.csrf() }}
+            <button type="submit" class="menu-item menu-item-bad" role="menuitem">{{ ui.icon('arrow-right-from-bracket') }} Sign out</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="content page" id="content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+{% include "_toasts.html" %}
+
+<dialog class="modal" id="confirm-dialog" aria-labelledby="confirm-title">
+  <form method="dialog" class="modal-card">
+    <div class="modal-icon">{{ ui.icon('circle-question') }}</div>
+    <h2 id="confirm-title" class="modal-title">Are you sure?</h2>
+    <p class="modal-text"></p>
+    <label class="field modal-field" hidden>
+      <span class="field-label"></span>
+      <textarea rows="3" maxlength="255"></textarea>
+    </label>
+    <div class="modal-actions">
+      <button type="submit" value="cancel" class="btn btn-ghost">Cancel</button>
+      <button type="submit" value="ok" class="btn btn-primary modal-ok">Confirm</button>
+    </div>
+  </form>
+</dialog>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

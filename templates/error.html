@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · Pasig DASRS</title>
+  <link rel="icon" type="image/png" href="{{ asset('logo.png') }}">
+  <link rel="stylesheet" href="{{ asset('vendor/fontawesome/css/fontawesome.min.css') }}">
+  <link rel="stylesheet" href="{{ asset('vendor/fontawesome/css/solid.min.css') }}">
+  <link rel="stylesheet" href="{{ asset('style.css') }}">
+</head>
+<body class="error-page">
+  <main class="error-card">
+    <img src="{{ asset('logo.png') }}" alt="" width="56" height="56">
+    <p class="error-code">{{ code }}</p>
+    <h1>{{ title }}</h1>
+    <p class="muted">{{ message }}</p>
+    <div class="error-actions">
+      <a class="btn btn-primary" href="{{ url_for('auth.home') }}"><i class="fa-solid fa-house" aria-hidden="true"></i> Go to dashboard</a>
+      <a class="btn btn-ghost" href="javascript:history.back()"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Go back</a>
+    </div>
+  </main>
+</body>
+</html>

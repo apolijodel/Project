@@ -1,54 +1,122 @@
-{% extends "city/base_dashboard.html" %}
-
-{% block title %}User Management{% endblock %}
+{% extends "base.html" %}
+{% block title %}User Accounts{% endblock %}
+{% block heading %}User accounts{% endblock %}
+{% block crumbs %}<p class="crumbs">{{ users|length }} accounts · passwords are stored as secure hashes</p>{% endblock %}
 
 {% block content %}
-
-<h2>User Management</h2>
-
-<div class="form-card">
-    <form method="POST" action="{{ url_for('city.add_user') }}">
-
-        <input type="text" name="username" placeholder="Username" required>
-
-        <input type="password" name="password" placeholder="Password" required>
-
-        <select name="role" required>
-            <option value="barangay">Barangay</option>
-            <option value="city">City</option>
-        </select>
-
-        <button type="submit">Add User</button>
-
+<section class="grid grid-1-2 grid-form">
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Create account</h2>
+        <p class="card-sub">Barangay accounts can only see their own barangay</p>
+      </div>
+    </header>
+    <form method="post" action="{{ url_for('city.add_user') }}" class="form" data-loading data-role-form>
+      {{ ui.csrf() }}
+      <div class="segmented" role="radiogroup" aria-label="Account type">
+        <label><input type="radio" name="role" value="barangay" checked><span>{{ ui.icon('house-medical') }} Barangay</span></label>
+        <label><input type="radio" name="role" value="city"><span>{{ ui.icon('building-columns') }} City admin</span></label>
+      </div>
+      <label class="field" data-barangay-field>
+        <span class="field-label">Barangay</span>
+        <input type="text" name="barangay" class="input" list="barangayList" maxlength="100" placeholder="Choose existing or type a new barangay" required>
+        <datalist id="barangayList">{% for b in barangays %}<option value="{{ b.name }}">{% endfor %}</datalist>
+        <span class="field-hint">A new barangay is created if the name doesn't exist yet.</span>
+      </label>
+      <label class="field">
+        <span class="field-label">Username</span>
+        <input type="text" name="username" class="input" required minlength="3" maxlength="60" autocomplete="off" placeholder="e.g. kapitolyo.bhw">
+      </label>
+      <label class="field">
+        <span class="field-label">Temporary password</span>
+        <span class="input-icon">
+          {{ ui.icon('lock') }}
+          <input type="password" name="password" class="input" required minlength="6" autocomplete="new-password" placeholder="At least 6 characters">
+          <button type="button" class="reveal-btn" data-action="toggle-password" aria-label="Show password">{{ ui.icon('eye') }}</button>
+        </span>
+      </label>
+      <button type="submit" class="btn btn-primary">{{ ui.icon('user-plus') }} Create account</button>
     </form>
-</div>
+  </article>
 
-<div class="table-section">
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Username</th>
-                <th>Role</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-
+  <article class="card card-flush">
+    <header class="card-head card-head-pad">
+      <div>
+        <h2>All accounts</h2>
+        <p class="card-sub"><span data-filter-count>{{ users|length }}</span> shown</p>
+      </div>
+    </header>
+    <div class="toolbar" data-filter data-filter-items="#userTable tbody tr">
+      <label class="search">
+        {{ ui.icon('magnifying-glass') }}
+        <input type="search" data-filter-text placeholder="Search accounts" aria-label="Search accounts">
+      </label>
+      <select class="select" data-filter-key="role" aria-label="Filter by role">
+        <option value="">All roles</option>
+        <option value="city">City admins</option>
+        <option value="barangay">Barangay</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table class="table" id="userTable">
+        <thead><tr><th>Account</th><th>Role</th><th>Last sign-in</th><th class="actions-col"><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>
-        {% for user in users %}
-            <tr>
-                <td>{{ user.id }}</td>
-                <td>{{ user.username }}</td>
-                <td>{{ user.role }}</td>
-                <td>
-                    <a href="{{ url_for('city.delete_user', id=user.id) }}">
-                        Delete
-                    </a>
-                </td>
-            </tr>
+        {% for u in users %}
+          <tr data-role="{{ u.role }}">
+            <td>
+              <div class="user-cell">
+                <span class="avatar avatar-sm">{{ u.username[:2]|upper }}</span>
+                <span>
+                  <strong>{{ u.username }}</strong>{% if u.id == current_user.id %} <span class="tag">You</span>{% endif %}
+                  <small class="muted d-block">{{ u.barangay or 'City Health Office' }}</small>
+                </span>
+              </div>
+            </td>
+            <td>
+              {% if u.role == 'city' %}<span class="pill pill-info">{{ ui.icon('building-columns') }}City admin</span>
+              {% else %}<span class="pill pill-neutral">{{ ui.icon('house-medical') }}Barangay</span>{% endif %}
+            </td>
+            <td><span title="{{ u.last_login_at|dt }}">{{ u.last_login_at|ago if u.last_login_at else 'Never' }}</span></td>
+            <td class="actions-col">
+              <div class="row-actions">
+                <form method="post" action="{{ url_for('city.reset_password', id=u.id) }}"
+                      data-confirm="Set a new password for {{ u.username }}." data-confirm-label="Update password"
+                      data-confirm-input="password" data-confirm-input-type="password" data-confirm-input-label="New password (min. 6 characters)">
+                  {{ ui.csrf() }}<input type="hidden" name="password">
+                  <button type="submit" class="btn btn-sm btn-ghost" aria-label="Reset password for {{ u.username }}" title="Reset password">{{ ui.icon('key') }}</button>
+                </form>
+                {% if u.id != current_user.id %}
+                <form method="post" action="{{ url_for('city.delete_user', id=u.id) }}"
+                      data-confirm="Delete the account “{{ u.username }}”? The barangay and its records are kept." data-confirm-label="Delete" data-confirm-tone="danger">
+                  {{ ui.csrf() }}
+                  <button type="submit" class="btn btn-sm btn-ghost-bad" aria-label="Delete {{ u.username }}" title="Delete account">{{ ui.icon('trash-can') }}</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
         {% endfor %}
         </tbody>
-    </table>
-</div>
+      </table>
+      <div data-filter-empty hidden>{{ ui.empty('No accounts match', '', 'magnifying-glass') }}</div>
+    </div>
+  </article>
+</section>
+{% endblock %}
 
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var form = document.querySelector("[data-role-form]");
+  var field = form.querySelector("[data-barangay-field]");
+  var input = field.querySelector("input");
+  form.addEventListener("change", function (e) {
+    if (e.target.name !== "role") return;
+    var isBarangay = e.target.value === "barangay";
+    field.hidden = !isBarangay;
+    input.required = isBarangay;
+  });
+});
+</script>
 {% endblock %}

@@ -1,0 +1,13 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+<div class="toasts" aria-live="polite">
+  {% for category, message in messages %}
+  {% set tone = 'bad' if category == 'error' else ('good' if category == 'success' else 'info') %}
+  <div class="toast toast-{{ tone }}" role="{{ 'alert' if tone == 'bad' else 'status' }}">
+    <i class="fa-solid fa-{{ 'circle-exclamation' if tone == 'bad' else ('circle-check' if tone == 'good' else 'circle-info') }} toast-icon" aria-hidden="true"></i>
+    <p>{{ message }}</p>
+    <button type="button" class="toast-close" aria-label="Dismiss"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    <span class="toast-timer"></span>
+  </div>
+  {% endfor %}
+</div>
+{% endwith %}

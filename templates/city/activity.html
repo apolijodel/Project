@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Activity Log{% endblock %}
+{% block heading %}Stock activity log{% endblock %}
+{% block crumbs %}<p class="crumbs">Every restock, release and dispense, with who recorded it</p>{% endblock %}
+
+{% block actions %}
+<a class="btn btn-ghost hide-sm" href="{{ url_for('city.export_activity', **request.args) }}">{{ ui.icon('file-arrow-down') }} Export CSV</a>
+{% endblock %}
+
+{% block content %}
+{% set TYPE = {
+  'restock':  ('good', 'arrow-down',           'Restocked',  'Received into city stock'),
+  'release':  ('info', 'truck-fast',           'Released',   'City stock sent to barangays'),
+  'dispense': ('warn', 'hand-holding-medical', 'Dispensed',  'Given out by barangays'),
+} %}
+<section class="stats stats-3">
+  {% for key in ('restock', 'release', 'dispense') %}
+  {% set t = totals.get(key) %}
+  {% set tone, ic, label, hint = TYPE[key] %}
+  {{ ui.stat(label, t.units if t else 0, ic, tone, (t.n if t else 0)|string ~ ' entries · ' ~ hint,
+             url_for('city.activity', type=key, barangay=filters.barangay, q=filters.q or None,
+                     start=filters.start or None, end=filters.end or None)) }}
+  {% endfor %}
+</section>
+
+<section class="card card-flush">
+  <form class="toolbar" method="get" action="{{ url_for('city.activity') }}">
+    <label class="search">
+      {{ ui.icon('magnifying-glass') }}
+      <input type="search" name="q" value="{{ filters.q }}" placeholder="Medicine, note or user" aria-label="Search">
+    </label>
+    <select name="type" class="select" aria-label="Movement type" data-autosubmit>
+      <option value="">All movements</option>
+      {% for key in ('restock', 'release', 'dispense') %}<option value="{{ key }}"{% if filters.type == key %} selected{% endif %}>{{ TYPE[key][2] }}</option>{% endfor %}
+    </select>
+    <select name="barangay" class="select" aria-label="Barangay" data-autosubmit>
+      <option value="">All barangays</option>
+      {% for b in barangays %}<option value="{{ b.id }}"{% if b.id == filters.barangay %} selected{% endif %}>{{ b.name }}</option>{% endfor %}
+    </select>
+    <label class="date-field"><span>From</span><input type="date" name="start" class="input" value="{{ filters.start }}"></label>
+    <label class="date-field"><span>To</span><input type="date" name="end" class="input" value="{{ filters.end }}"></label>
+    <button class="btn btn-ghost" type="submit">{{ ui.icon('filter') }} Apply</button>
+    {% if filters.q or filters.type or filters.barangay or filters.start or filters.end %}
+      <a class="link" href="{{ url_for('city.activity') }}">Clear</a>
+    {% endif %}
+  </form>
+
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="table table-stack">
+      <thead><tr><th>When</th><th>Movement</th><th>Medicine</th><th class="num">Units</th><th>Barangay</th><th>Recorded by</th><th>Note</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+      {% set tone, ic, label, _ = TYPE[r.movement] %}
+        <tr>
+          <td data-label="When" class="nowrap">{{ r.created_at|dt }}</td>
+          <td data-label="Movement"><span class="pill pill-{{ tone }}">{{ ui.icon(ic) }}{{ label }}</span></td>
+          <td data-label="Medicine"><strong>{{ r.medicine }}</strong></td>
+          <td class="num" data-label="Units"><strong class="{{ 'text-good' if r.movement == 'restock' else '' }}">{{ '+' if r.movement == 'restock' else '−' }}{{ r.quantity|num }}</strong></td>
+          <td data-label="Barangay">{{ r.barangay or '—' }}</td>
+          <td data-label="Recorded by">{{ r.performed_by or '—' }}</td>
+          <td data-label="Note">
+            {% if r.request_id %}<a class="row-link" href="{{ url_for('city.request_details', id=r.request_id) }}">Request #{{ r.request_id }}</a>{% endif %}
+            {% if r.note %}<span class="muted">{{ r.note }}</span>{% elif not r.request_id %}<span class="muted">—</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ ui.pager(page, pages, total, 'entries') }}
+  {% else %}
+    {{ ui.empty('No activity found', 'Restocks, releases and dispensing appear here as they happen. Try clearing the filters.', 'clock-rotate-left') }}
+  {% endif %}
+</section>
+{% endblock %}

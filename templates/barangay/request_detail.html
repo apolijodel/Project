@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Request #{{ req.id }}{% endblock %}
+{% block heading %}Request #{{ req.id }}{% endblock %}
+{% block crumbs %}<p class="crumbs"><a href="{{ url_for('barangay.request_supplies') }}">{{ ui.icon('arrow-left') }} My requests</a></p>{% endblock %}
+
+{% block actions %}{{ ui.status_pill(req.status) }}{% endblock %}
+
+{% block content %}
+{% set msg = {
+  'pending':   ('warn',    'clock',        'Waiting for approval', 'The City Health Office will review this request soon.'),
+  'approved':  ('info',    'circle-check', 'Approved', 'It will be released to your barangay once the medicines are ready.'),
+  'released':  ('good',    'truck-fast',   'Delivered to your inventory', 'These units were added to your barangay stock.'),
+  'rejected':  ('bad',     'circle-xmark', 'Not approved', req.remarks or 'The City Health Office did not approve this request.'),
+  'cancelled': ('neutral', 'ban',          'Cancelled', 'You cancelled this request.'),
+}[req.status] %}
+<section class="banner banner-{{ msg[0] }}">
+  <span class="banner-icon">{{ ui.icon(msg[1]) }}</span>
+  <div class="banner-body">
+    <strong>{{ msg[2] }}</strong>
+    <p>{{ msg[3] }}</p>
+  </div>
+  <div class="banner-actions">
+    {% if req.status == 'pending' %}
+    <form method="post" action="{{ url_for('barangay.cancel', id=req.id) }}"
+          data-confirm="Cancel your request for {{ req.quantity|num }} × {{ req.medicine }}?" data-confirm-label="Cancel request" data-confirm-tone="danger">
+      {{ ui.csrf() }}<input type="hidden" name="next" value="{{ url_for('barangay.request_detail', id=req.id) }}">
+      <button type="submit" class="btn btn-ghost-bad">{{ ui.icon('ban') }} Cancel request</button>
+    </form>
+    {% endif %}
+    {% if req.status in ('approved', 'released') %}
+    <a class="btn btn-ghost" href="{{ url_for('barangay.slip', id=req.id) }}" target="_blank" rel="noopener">{{ ui.icon('print') }} Print slip</a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="grid grid-1-1">
+  <article class="card">
+    <header class="card-head"><h2>Details</h2></header>
+    <dl class="details">
+      <div><dt>Medicine</dt><dd><strong>{{ req.medicine }}</strong></dd></div>
+      <div><dt>Quantity</dt><dd><strong class="big">{{ req.quantity|num }}</strong> units</dd></div>
+      <div><dt>Type</dt><dd>{{ 'Sent directly by the city' if req.source == 'direct' else 'Your request' }}</dd></div>
+      <div><dt>Requested</dt><dd>{{ req.requested_at|dt }}</dd></div>
+      <div><dt>You have now</dt><dd>{{ req.my_stock|num }} units in stock</dd></div>
+    </dl>
+  </article>
+  <article class="card">
+    <header class="card-head"><h2>Progress</h2></header>
+    {{ ui.request_timeline(events, req.status, 'Barangay ' ~ current_user.barangay_name) }}
+  </article>
+</section>
+{% endblock %}

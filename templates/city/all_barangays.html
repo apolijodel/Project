@@ -1,135 +1,68 @@
-{% extends "city/base_dashboard.html" %}
+{% extends "base.html" %}
+{% block title %}Barangays{% endblock %}
+{% block heading %}Barangays{% endblock %}
+{% block crumbs %}<p class="crumbs">{{ barangays|length }} barangays · {{ totals.requests|num }} requests · {{ totals.received|num }} units delivered</p>{% endblock %}
 
-{% block title %}All Barangays{% endblock %}
+{% block actions %}
+<a class="btn btn-ghost hide-sm" href="{{ url_for('city.manage_users') }}">{{ ui.icon('user-plus') }} Add barangay account</a>
+{% endblock %}
 
 {% block content %}
-
-<!-- ================= FILTERS ================= -->
-<div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
-
-    <input 
-        type="text" 
-        id="searchInput" 
-        placeholder="Search barangay..."
-        style="padding:10px; width:250px; border:1px solid #ccc; border-radius:5px;"
-    >
-
-    <select id="statusFilter" style="padding:10px; border-radius:5px;">
-        <option value="all">All Status</option>
-        <option value="normal">Normal</option>
-        <option value="low">Low</option>
-        <option value="critical">Critical</option>
-    </select>
-
+<div class="toolbar toolbar-bare" data-filter data-filter-items="#barangayGrid [data-item]">
+  <label class="search">
+    {{ ui.icon('magnifying-glass') }}
+    <input type="search" data-filter-text placeholder="Search barangay" aria-label="Search barangay">
+  </label>
+  <select class="select" data-filter-key="health" aria-label="Filter by stock health">
+    <option value="">All stock levels</option>
+    <option value="critical">Has out-of-stock items</option>
+    <option value="low">Has low stock</option>
+    <option value="adequate">Well stocked</option>
+    <option value="idle">No inventory yet</option>
+  </select>
+  <span class="muted toolbar-note"><span data-filter-count>{{ barangays|length }}</span> shown · {{ totals.attention }} need attention</span>
 </div>
 
-<!-- ================= SUMMARY ================= -->
-<div class="stats-cards">
+{% set HEALTH = {
+  'critical': ('bad', 'circle-xmark', 'Out of stock items'),
+  'low': ('warn', 'triangle-exclamation', 'Low stock'),
+  'adequate': ('good', 'circle-check', 'Well stocked'),
+  'idle': ('neutral', 'minus', 'No inventory yet'),
+} %}
 
-    <div class="stats-card">
-        <h3>Visible Barangays</h3>
-        <p id="visibleCount">{{ barangays|length }}</p>
+{% if barangays %}
+<section class="cards" id="barangayGrid">
+  {% for b in barangays %}
+  {% set tone, ic, label = HEALTH[b.health] %}
+  <a class="bcard" href="{{ url_for('city.barangay_detail', id=b.id) }}" data-item data-health="{{ b.health }}">
+    <div class="bcard-head">
+      <span class="bcard-avatar">{{ b.name[:2]|upper }}</span>
+      <div>
+        <h3>{{ b.name }}</h3>
+        <small class="muted">{% if b.last_request %}Last request {{ b.last_request|ago }}{% else %}No requests yet{% endif %}</small>
+      </div>
+      {% if b.pending %}<span class="nav-badge" title="Pending requests">{{ b.pending }}</span>{% endif %}
     </div>
-
-    <div class="stats-card">
-        <h3>Total Transactions</h3>
-        <p>{{ barangays | sum(attribute='total_requests') }}</p>
+    <div class="bcard-stats">
+      <div><strong>{{ b.total_requests|num }}</strong><span>Requests</span></div>
+      <div><strong>{{ b.received|num }}</strong><span>Units received</span></div>
+      <div><strong>{{ b.item_count }}</strong><span>Items held</span></div>
     </div>
-
-    <div class="stats-card">
-        <h3>Total Used</h3>
-        <p>{{ barangays | sum(attribute='total_used') }}</p>
+    <div class="bcard-foot">
+      <span class="pill pill-{{ tone }}">{{ ui.icon(ic) }}{{ label }}</span>
+      {% if b.item_count %}
+        <span class="muted">{{ b.healthy_pct }}% healthy</span>
+      {% endif %}
     </div>
-
-</div>
-
-<!-- ================= TABLE ================= -->
-<div class="table-section">
-    <h2>Barangay Medicine Overview</h2>
-
-    <table id="barangayTable">
-        <thead>
-            <tr>
-                <th>Barangay</th>
-                <th>Total Transactions</th>
-                <th>Total Used</th>
-                <th>Status</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-
-        <tbody>
-        {% for b in barangays %}
-
-            {% set status = "normal" %}
-            {% if b.total_used and b.total_used > 500 %}
-                {% set status = "critical" %}
-            {% elif b.total_used and b.total_used > 200 %}
-                {% set status = "low" %}
-            {% endif %}
-
-            <tr data-status="{{ status }}">
-                <td class="barangay-name">{{ b.name }}</td>
-                <td>{{ b.total_requests or 0 }}</td>
-                <td>{{ b.total_used or 0 }}</td>
-
-                <td>
-                    <span class="status {{ status }}">
-                        {{ status.capitalize() }}
-                    </span>
-                </td>
-
-                <td>
-                    <a href="{{ url_for('city.barangay_detail', id=b.id) }}">
-                        <button>View</button>
-                    </a>
-                </td>
-
-            </tr>
-
-        {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<!-- ================= SCRIPT ================= -->
-<script>
-const searchInput = document.getElementById("searchInput");
-const statusFilter = document.getElementById("statusFilter");
-const table = document.getElementById("barangayTable");
-const rows = table.getElementsByTagName("tr");
-const visibleCount = document.getElementById("visibleCount");
-
-function filterTable() {
-    const searchValue = searchInput.value.toLowerCase();
-    const statusValue = statusFilter.value;
-
-    let count = 0;
-
-    for (let i = 1; i < rows.length; i++) {
-        const nameCell = rows[i].getElementsByClassName("barangay-name")[0];
-        const rowStatus = rows[i].getAttribute("data-status");
-
-        if (!nameCell) continue;
-
-        const nameText = nameCell.textContent.toLowerCase();
-
-        const matchSearch = nameText.includes(searchValue);
-        const matchStatus = (statusValue === "all" || rowStatus === statusValue);
-
-        if (matchSearch && matchStatus) {
-            rows[i].style.display = "";
-            count++;
-        } else {
-            rows[i].style.display = "none";
-        }
-    }
-
-    visibleCount.textContent = count;
-}
-
-searchInput.addEventListener("keyup", filterTable);
-statusFilter.addEventListener("change", filterTable);
-</script>
-
+  </a>
+  {% endfor %}
+</section>
+<div data-filter-empty hidden>{{ ui.empty('No barangays match', 'Try another search or filter.', 'magnifying-glass') }}</div>
+{% else %}
+  <section class="card">
+    {% call ui.empty('No barangays yet', 'Create a barangay account to get started.', 'map-location-dot') %}
+      <a class="btn btn-primary" href="{{ url_for('city.manage_users') }}">{{ ui.icon('user-plus') }} Add barangay account</a>
+    {% endcall %}
+  </section>
+{% endif %}
 {% endblock %}

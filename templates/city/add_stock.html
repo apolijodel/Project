@@ -1,128 +1,158 @@
-{% extends "city/base_dashboard.html" %}
-
-{% block title %}Add Stock{% endblock %}
+{% extends "base.html" %}
+{% block title %}City Stock{% endblock %}
+{% block heading %}City stock{% endblock %}
+{% block crumbs %}<p class="crumbs">{{ medicines|length }} active medicines · {{ total_units|num }} units on hand</p>{% endblock %}
 
 {% block content %}
-
-<div class="inventory-container">
-
-    <h2>City Medicine Stock Management</h2>
-
-    <!-- ================= ADD NEW MEDICINE ================= -->
-    <div class="inventory-card">
-
-        <h3>Add New Medicine</h3>
-
-        <form method="POST" class="deduct-form">
-
-            <input type="hidden" name="action" value="add_medicine">
-
-            <input
-                type="text"
-                name="medicine_name"
-                class="medicine-select"
-                placeholder="Enter medicine name"
-                required
-            >
-
-            <button type="submit" class="deduct-btn">
-                Add Medicine
-            </button>
-
-        </form>
-
-    </div>
-
-    <!-- ================= RESTOCK MEDICINE ================= -->
-    <div class="inventory-card">
-
-    <h3>Restock Medicine</h3>
-
-    <form method="POST" class="deduct-form">
-
-        <input type="hidden" name="action" value="add_stock">
-
-        <!-- MEDICINE DROPDOWN -->
-        <select name="medicine_id" class="medicine-select" required>
-            {% for m in medicines %}
-            <option value="{{ m.id }}">
-                {{ m.name }} (Current: {{ m.stock }})
-            </option>
-            {% endfor %}
+<section class="grid grid-1-1">
+  <article class="card" id="restock">
+    <header class="card-head">
+      <div>
+        <h2>Restock</h2>
+        <p class="card-sub">Record medicines received by the City Health Office</p>
+      </div>
+      <span class="list-icon tone-good">{{ ui.icon('boxes-packing') }}</span>
+    </header>
+    {% if medicines %}
+    <form method="post" action="{{ url_for('city.restock_medicine') }}" class="form" data-loading>
+      {{ ui.csrf() }}
+      <label class="field">
+        <span class="field-label">Medicine</span>
+        <select name="medicine_id" class="select" required>
+          {% for m in medicines %}
+          <option value="{{ m.id }}"{% if m.id == preselect %} selected{% endif %}>{{ m.name }} — {{ m.stock|num }} in stock{% if m.recommended %} · restock {{ m.recommended|num }} suggested{% endif %}</option>
+          {% endfor %}
         </select>
-
-        <!-- QUANTITY -->
-        <input
-            type="number"
-            name="quantity"
-            class="quantity-input"
-            min="1"
-            placeholder="Quantity"
-            required
-        >
-
-        <!-- ADD STOCK BUTTON -->
-        <button type="submit" class="deduct-btn">
-            Add Stock
-        </button>
-
-        <!-- DELETE BUTTON (same row) -->
-        <a
-            href="#"
-            class="delete-btn"
-            onclick="
-                if(confirm('Delete selected medicine?')) {
-                    const select = this.parentElement.querySelector('select');
-                    window.location.href = '/city/delete-medicine/' + select.value;
-                }
-                return false;
-            "
-        >
-            Delete
-        </a>
-
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span class="field-label">Quantity received</span>
+          <input type="number" name="quantity" class="input" min="1" step="1" required inputmode="numeric" placeholder="e.g. 500">
+        </label>
+        <label class="field">
+          <span class="field-label">Reference <span class="muted">(optional)</span></span>
+          <input type="text" name="note" class="input" maxlength="255" placeholder="Delivery receipt / supplier">
+        </label>
+      </div>
+      <button type="submit" class="btn btn-primary">{{ ui.icon('plus') }} Add to stock</button>
     </form>
+    {% else %}
+      {{ ui.empty('No medicines yet', 'Add a medicine first.', 'pills') }}
+    {% endif %}
+  </article>
 
-</div>
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2>Add medicine</h2>
+        <p class="card-sub">New items become available for requests right away</p>
+      </div>
+      <span class="list-icon tone-info">{{ ui.icon('pills') }}</span>
+    </header>
+    <form method="post" action="{{ url_for('city.create_medicine') }}" class="form" data-loading>
+      {{ ui.csrf() }}
+      <label class="field">
+        <span class="field-label">Medicine name and strength</span>
+        <input type="text" name="medicine_name" class="input" required minlength="2" maxlength="150" placeholder="e.g. Cefalexin 500mg">
+      </label>
+      <label class="field">
+        <span class="field-label">Initial stock <span class="muted">(optional)</span></span>
+        <input type="number" name="initial_stock" class="input" min="0" step="1" value="0" inputmode="numeric">
+      </label>
+      <button type="submit" class="btn btn-soft">{{ ui.icon('plus') }} Add medicine</button>
+    </form>
+  </article>
+</section>
 
-    <!-- ================= INVENTORY TABLE ================= -->
-    <div class="inventory-card">
-
-        <h3>Current City Inventory</h3>
-
-        <table class="inventory-table">
-            <thead>
-                <tr>
-                    <th>Medicine</th>
-                    <th>Stock</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                {% for m in medicines %}
-                <tr>
-                    <td>{{ m.name }}</td>
-                    <td>{{ m.stock }}</td>
-
-                    <td>
-                        {% if m.stock == 0 %}
-                            <span class="out-stock">Out of Stock</span>
-                        {% elif m.stock <= 20 %}
-                            <span class="low-stock">Low Stock</span>
-                        {% else %}
-                            <span class="normal-stock">Normal Stock</span>
-                        {% endif %}
-                    </td>
-
-                </tr>
-                {% endfor %}
-            </tbody>
-
-        </table>
-
+<section class="card card-flush">
+  <header class="card-head card-head-pad">
+    <div>
+      <h2>Inventory</h2>
+      <p class="card-sub"><span data-filter-count>{{ table|length }}</span> medicines · forecast for the next {{ horizon }} weeks</p>
     </div>
+    {% if archived_count %}
+      <a class="link" href="{{ url_for('city.add_stock', archived=None if show_archived else 1) }}">
+        {{ ui.icon('box-archive') }} {{ 'Hide' if show_archived else 'Show' }} archived ({{ archived_count }})
+      </a>
+    {% endif %}
+  </header>
+  <div class="toolbar" data-filter data-filter-items="#stockTable tbody tr">
+    <label class="search">
+      {{ ui.icon('magnifying-glass') }}
+      <input type="search" data-filter-text placeholder="Search medicine" aria-label="Search medicine">
+    </label>
+    <select class="select" data-filter-key="risk" aria-label="Filter by risk">
+      <option value="">All risk levels</option>
+      <option value="critical">Critical</option>
+      <option value="low">Low</option>
+      <option value="adequate">Adequate</option>
+      <option value="idle">No demand</option>
+    </select>
+  </div>
+  <div class="table-wrap">
+    <table class="table" id="stockTable">
+      <thead>
+        <tr><th>Medicine</th><th class="num">City stock</th><th class="num">Forecast</th><th>Risk</th><th class="actions-col"><span class="sr-only">Actions</span></th></tr>
+      </thead>
+      <tbody>
+      {% for m in table %}
+        <tr data-risk="{{ m.risk }}" class="{{ '' if m.is_active else 'is-muted' }}">
+          <td>
+            <strong>{{ m.name }}</strong>
+            {% if not m.is_active %}<span class="tag">Archived</span>{% endif %}
+          </td>
+          <td class="num">{{ m.stock|num }}</td>
+          <td class="num">{{ m.demand|num }}</td>
+          <td>{{ ui.risk_pill(m.risk) }}</td>
+          <td class="actions-col">
+            <div class="row-actions">
+            {% if m.is_active %}
+              <form method="post" action="{{ url_for('city.archive_medicine', id=m.id) }}"
+                    data-confirm="Archive {{ m.name }}? It will be hidden from new requests and its open requests will be rejected. History is kept for reports."
+                    data-confirm-label="Archive" data-confirm-tone="danger">
+                {{ ui.csrf() }}<input type="hidden" name="next" value="{{ request.full_path }}">
+                <button type="submit" class="btn btn-sm btn-ghost-bad">{{ ui.icon('box-archive') }} Archive</button>
+              </form>
+            {% else %}
+              <form method="post" action="{{ url_for('city.restore_medicine', id=m.id) }}" data-loading>
+                {{ ui.csrf() }}<input type="hidden" name="next" value="{{ request.full_path }}">
+                <button type="submit" class="btn btn-sm btn-ghost">{{ ui.icon('rotate-left') }} Restore</button>
+              </form>
+            {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div data-filter-empty hidden>{{ ui.empty('No medicines match', 'Try another search or risk level.', 'magnifying-glass') }}</div>
+  </div>
+</section>
 
-</div>
-
+<section class="card">
+  <header class="card-head">
+    <div>
+      <h2>Stock movements</h2>
+      <p class="card-sub">Latest restocks and releases</p>
+    </div>
+  </header>
+  {% if movements %}
+  <ul class="timeline">
+    {% for mv in movements %}
+    <li class="timeline-item">
+      <span class="list-icon tone-{{ 'good' if mv.movement == 'restock' else 'info' }}">{{ ui.icon('arrow-down' if mv.movement == 'restock' else 'truck-fast') }}</span>
+      <div>
+        <p>
+          {% if mv.movement == 'restock' %}<strong>+{{ mv.quantity|num }}</strong> {{ mv.medicine }} restocked
+          {% else %}<strong>−{{ mv.quantity|num }}</strong> {{ mv.medicine }} released to {{ mv.barangay }}{% endif %}
+        </p>
+        <small class="muted">{{ mv.performed_by or 'system' }} · {{ mv.created_at|ago }}{% if mv.note %} · {{ mv.note }}{% endif %}</small>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    {{ ui.empty('No movements recorded yet', 'Restocks and releases will be logged here automatically.', 'clock-rotate-left') }}
+  {% endif %}
+</section>
 {% endblock %}

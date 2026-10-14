@@ -1,0 +1,124 @@
+{% macro icon(name, cls="") -%}
+<i class="fa-solid fa-{{ name }} {{ cls }}" aria-hidden="true"></i>
+{%- endmacro %}
+
+{% macro csrf() -%}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{%- endmacro %}
+
+{% set STATUS = {
+  'pending':   ('warn',    'clock',          'Pending'),
+  'approved':  ('info',    'circle-check',   'Approved'),
+  'released':  ('good',    'truck-fast',     'Released'),
+  'rejected':  ('bad',     'circle-xmark',   'Rejected'),
+  'cancelled': ('neutral', 'ban',            'Cancelled'),
+} %}
+
+{% set RISK = {
+  'critical': ('bad',     'triangle-exclamation', 'Critical'),
+  'low':      ('warn',    'arrow-trend-down',     'Low'),
+  'adequate': ('good',    'circle-check',         'Adequate'),
+  'idle':     ('neutral', 'minus',                'No demand'),
+} %}
+
+{% macro status_pill(status) -%}
+{% set tone, ic, label = STATUS.get(status, ('neutral', 'circle', status|capitalize)) %}
+<span class="pill pill-{{ tone }}">{{ icon(ic) }}{{ label }}</span>
+{%- endmacro %}
+
+{% macro risk_pill(risk) -%}
+{% set tone, ic, label = RISK.get(risk, ('neutral', 'circle', risk|capitalize)) %}
+<span class="pill pill-{{ tone }}">{{ icon(ic) }}{{ label }}</span>
+{%- endmacro %}
+
+{% macro stock_pill(stock, threshold) -%}
+{% if stock == 0 %}<span class="pill pill-bad">{{ icon('circle-xmark') }}Out of stock</span>
+{% elif stock <= threshold %}<span class="pill pill-warn">{{ icon('triangle-exclamation') }}Low stock</span>
+{% else %}<span class="pill pill-good">{{ icon('circle-check') }}In stock</span>{% endif %}
+{%- endmacro %}
+
+{% macro source_tag(source) -%}
+{% if source == 'direct' %}<span class="tag" title="Distributed directly by the city">Direct</span>{% endif %}
+{%- endmacro %}
+
+{% macro stat(label, value, icon_name, tone="brand", hint=None, href=None, decimals=0) -%}
+{% set tag = 'a' if href else 'div' %}
+<{{ tag }} class="stat stat-{{ tone }}{% if href %} is-link{% endif %}"{% if href %} href="{{ href }}"{% endif %}>
+  <span class="stat-icon">{{ icon(icon_name) }}</span>
+  <span class="stat-body">
+    <span class="stat-label">{{ label }}</span>
+    <span class="stat-value" data-count="{{ value }}" data-decimals="{{ decimals }}">{{ value|num(decimals) }}</span>
+    {% if hint %}<span class="stat-hint">{{ hint }}</span>{% endif %}
+  </span>
+</{{ tag }}>
+{%- endmacro %}
+
+{% macro empty(title, text="", icon_name="inbox") -%}
+<div class="empty">
+  <span class="empty-icon">{{ icon(icon_name) }}</span>
+  <p class="empty-title">{{ title }}</p>
+  {% if text %}<p class="empty-text">{{ text }}</p>{% endif %}
+  {% if caller %}<div class="empty-actions">{{ caller() }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro stock_meter(stock, threshold) -%}
+{% set full = threshold * 4 %}
+{% set pct = [100, (stock / full * 100)|round|int]|min if full else 0 %}
+<span class="meter meter-{{ 'bad' if stock == 0 else ('warn' if stock <= threshold else 'good') }}"
+      role="img" aria-label="{{ stock }} units">
+  <span style="--w: {{ [pct, 2]|max if stock else 0 }}%"></span>
+</span>
+{%- endmacro %}
+
+{% macro pager(page, pages, total, noun="records") -%}
+{% if pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  <span class="pager-info">Page {{ page }} of {{ pages }} · {{ total|num }} {{ noun }}</span>
+  <span class="pager-links">
+    {% if page > 1 %}<a class="btn btn-ghost btn-sm" href="{{ page_url(page - 1) }}">{{ icon('chevron-left') }} Prev</a>{% endif %}
+    {% if page < pages %}<a class="btn btn-ghost btn-sm" href="{{ page_url(page + 1) }}">Next {{ icon('chevron-right') }}</a>{% endif %}
+  </span>
+</nav>
+{% endif %}
+{%- endmacro %}
+
+{% macro tabs(items, current) -%}
+<div class="tabs" role="tablist">
+  {% for key, label, href, count in items %}
+  <a class="tab{% if key == current %} is-active{% endif %}" role="tab" href="{{ href }}"
+     aria-selected="{{ 'true' if key == current else 'false' }}">
+    {{ label }}{% if count is not none %}<span class="tab-count">{{ count|num }}</span>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro request_timeline(events, status, requester) -%}
+{% set STEP = {
+  'pending':   ('Requested', 'paper-plane',  'info'),
+  'approved':  ('Approved',  'circle-check', 'info'),
+  'released':  ('Released',  'truck-fast',   'good'),
+  'rejected':  ('Rejected',  'circle-xmark', 'bad'),
+  'cancelled': ('Cancelled', 'ban',          'neutral'),
+} %}
+<ol class="steps">
+  {% for e in events %}
+  {% set label, ic, tone = STEP[e.status] %}
+  <li class="step is-done tone-{{ tone }}">
+    <span class="step-dot">{{ icon(ic) }}</span>
+    <div class="step-body">
+      <strong>{{ 'Distributed by the city' if e.note == 'Direct distribution' else label }}</strong>
+      <small>{{ e.created_at|dt }} · {{ e.actor or (requester if e.status == 'pending' else 'City Health Office') }}</small>
+      {% if e.note and e.note != 'Direct distribution' %}<p class="step-note">“{{ e.note }}”</p>{% endif %}
+    </div>
+  </li>
+  {% endfor %}
+  {% if status == 'pending' %}
+    <li class="step is-next"><span class="step-dot">{{ icon('circle-check') }}</span><div class="step-body"><strong>Approval</strong><small>Waiting for the City Health Office</small></div></li>
+  {% endif %}
+  {% if status in ('pending', 'approved') %}
+    <li class="step is-next"><span class="step-dot">{{ icon('truck-fast') }}</span><div class="step-body"><strong>Release</strong><small>Stock moves to the barangay inventory</small></div></li>
+  {% endif %}
+</ol>
+{%- endmacro %}
